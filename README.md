@@ -3,7 +3,7 @@
 ##### This repository is the code which implements the database functions of the Agile Deployment Toolkit
 
 Machines built from this repository will support three different databases. MariaDB, MySQL or Postgres. 
-You can set which specific version you want to install in the ${BUILD_HOME}/descriptors/software.dat file on the build machine.
+You can set which specific version you want to install in the ${BUILD_HOME}/configuration/software.dat file on the build machine.
 
 It is expected that during development you will build by installing one of these databases but when you want to "go live" you will use this machine to proxy the backup and installation processes to a DBaaS database hosted by your cloudhost provider. This DBaaS database will be "man enough" to cope with production workloads. 
 

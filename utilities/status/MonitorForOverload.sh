@@ -1,0 +1,93 @@
+#!/bin/sh
+######################################################################################
+# Author : Peter Winter
+# Date   : 11/08/2021
+# Description:This will monitor of the webserver is overloaded or not
+#######################################################################################
+# License Agreement:
+# This file is part of The Agile Deployment Toolkit.
+# The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# The Agile Deployment Toolkit is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# You should have received a copy of the GNU General Public License
+# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
+########################################################################################
+########################################################################################
+#set -x
+
+if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh AUTOSCALEFROMBACKUP:1`" = "1" ] )
+then
+        exit
+fi
+
+if ( [ -f ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED ] )
+then
+        if test "`/usr/bin/find ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED -mmin +1440`"
+        then
+                /bin/rm ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED
+        fi
+fi
+
+if ( [ -f ${HOME}/runtime/LOW_MEMORY_ACKNOWLEDGED ] )
+then
+        if test "`/usr/bin/find ${HOME}/runtime/LOW_MEMORY_ACKNOWLEDGED -mmin +1440`"
+        then
+                /bin/rm ${HOME}/runtime/LOW_MEMORY_ACKNOWLEDGED
+        fi
+fi
+
+if ( [ -f ${HOME}/runtime/LOW_DISK_ACKNOWLEDGED ] )
+then
+        if test "`/usr/bin/find ${HOME}/runtime/LOW_DISK_ACKNOWLEDGED -mmin +1440`"
+        then
+                /bin/rm ${HOME}/runtime/LOW_DISK_ACKNOWLEDGED
+        fi
+fi
+
+ip="`${HOME}/utilities/processing/GetPublicIP.sh`"
+
+cpu_usage="`/usr/bin/sar -u 1 30 | /bin/grep "Average" | /usr/bin/awk '{print $NF}' | /usr/bin/awk -F'.' '{print $1}'`"
+
+if ( [ "${cpu_usage}" -lt "25" ] )
+then
+        ${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${ip}" "overloadedips" "no"
+else
+        ${HOME}/services/datastore/config/wrapper/DeleteFromDatastore.sh "config"  "overloadedips/${ip}"
+fi
+
+if ( [ "${cpu_usage}" -lt "5" ] )
+then 
+        if ( [ ! -f ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED ] )
+        then
+                /bin/touch ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED
+                ${HOME}/services/email/SendEmail.sh "POTENTIAL OVERLOAD CONDITION" "Potential overload on machine with ip ${ip} CPU is only ${cpu_usage}% free" "ERROR"
+        fi
+fi
+
+free_memory="`/usr/bin/sar -r 1 10 | /bin/grep Average | /usr/bin/awk '{print $2}' | /usr/bin/awk -F'.' '{print $1}'`"
+
+if ( [ "${free_memory}" -lt "10000" ] )
+then
+        if ( [ ! -f ${HOME}/runtime/LOW_MEMORY_ACKNOWLEDGED ] )
+        then
+                /bin/touch ${HOME}/runtime/LOW_MEMORY_ACKNOWLEDGED
+                ${HOME}/services/email/SendEmail.sh "POTENTIAL LOW MEMORY CONDITION" "Potential low memory on machine with ip ${ip} memory is only ${free_memory}% free" "ERROR"
+        fi
+fi
+
+
+disk_usage="`/usr/bin/df -h --total | /bin/grep total | /usr/bin/awk '{print $5}' | /bin/sed 's/%//'`"
+
+if ( [ "${disk_usage}" -gt "90" ] )
+then
+        if ( [ ! -f ${HOME}/runtime/LOW_DISK_ACKNOWLEDGED ] )
+        then
+                /bin/touch ${HOME}/runtime/LOW_DISK_ACKNOWLEDGED
+                ${HOME}/services/email/SendEmail.sh "POTENTIAL LOW DISK SPACE CONDITION" "Potential low disk space on machine with ip ${ip} disk space is  ${disk_usage}% full" "ERROR"
+        fi
+fi

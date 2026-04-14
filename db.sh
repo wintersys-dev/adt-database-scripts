@@ -53,7 +53,7 @@ fi
 /bin/chown ${SERVER_USER}:root ${HOME}/.ssh
 /bin/chmod 750 ${HOME}/.ssh
 
-/bin/echo 'export HOME=`/bin/cat /home/homedir.dat` && /bin/sh ${1} ${2} ${3} ${4} ${5} ${6}' > /usr/bin/run
+/bin/echo 'export HOME=`/bin/cat /home/homedir.dat` && /bin/sh ${@}' > /usr/bin/run
 /bin/chown ${SERVER_USER}:root /usr/bin/run
 /bin/chmod 750 /usr/bin/run
 

@@ -48,7 +48,7 @@ then
 	fi
 fi
 
-${HOME}/application/backupscripts/Backup.sh "${periodicity}"
+${HOME}/application/backup/Backup.sh "${periodicity}"
 
 if ( [ "${MULTI_REGION}" = "1" ] )
 then

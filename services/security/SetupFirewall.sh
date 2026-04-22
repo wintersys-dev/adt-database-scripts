@@ -135,12 +135,6 @@ then
 	fi
 fi
 
-if ( [ "${updated_ssh}" = "1" ] )
-then
-	${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
-fi
-
-updated_ssh="0"
 if ( [ "`/bin/grep ${BUILD_MACHINE_IP} /etc/ssh/sshd_config`" = "" ] )
 then
 	if ( [ "${SERVER_USER}" != "" ] && [ "${BUILD_MACHINE_IP}" != "" ] )

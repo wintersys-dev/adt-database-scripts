@@ -118,7 +118,7 @@ then
                         exit 1
                 fi
         fi
-elif ( [ "`${HOME}/services/git/GitLSRemote.sh ${APPLICATION_REPOSITORY_PROVIDER} ${APPLICATION_REPOSITORY_USERNAME} ${APPLICATION_REPOSITORY_OWNER} ${baseline_name}-db-baseline ${APPLICATION_REPOSITORY_TOKEN }2>&1`" = "" ] )
+elif ( [ "`${HOME}/services/git/GitLSRemote.sh ${APPLICATION_REPOSITORY_PROVIDER} ${APPLICATION_REPOSITORY_USERNAME} ${APPLICATION_REPOSITORY_OWNER} ${baseline_name}-db-baseline ${APPLICATION_REPOSITORY_TOKEN} 2>&1`" = "" ] )
 then
         /bin/echo "Suitable repo (${baseline_name}-db-baseline) found, press <enter> to continue"
         read x

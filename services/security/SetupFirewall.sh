@@ -128,8 +128,11 @@ fi
 updated_ssh="0"
 if ( [ "`/bin/grep ${VPC_IP_RANGE} /etc/ssh/sshd_config`" = "" ] )
 then
-	/bin/echo "AllowUsers ${SERVER_USER}@${VPC_IP_RANGE}" >> /etc/ssh/sshd_config
-	updated_ssh="1"
+	if ( [ "${SERVER_USER}" != "" ] && [ "${VPC_IP_RANGE}" != "" ] )
+	then
+		/bin/echo "AllowUsers ${SERVER_USER}@${VPC_IP_RANGE}" >> /etc/ssh/sshd_config
+		updated_ssh="1"
+	fi
 fi
 
 if ( [ "${updated_ssh}" = "1" ] )
@@ -140,8 +143,11 @@ fi
 updated_ssh="0"
 if ( [ "`/bin/grep ${BUILD_MACHINE_IP} /etc/ssh/sshd_config`" = "" ] )
 then
-	/bin/echo "AllowUsers ${SERVER_USER}@${BUILD_MACHINE_IP}" >> /etc/ssh/sshd_config
-	updated_ssh="1"
+	if ( [ "${SERVER_USER}" != "" ] && [ "${BUILD_MACHINE_IP}" != "" ] )
+	then
+		/bin/echo "AllowUsers ${SERVER_USER}@${BUILD_MACHINE_IP}" >> /etc/ssh/sshd_config
+		updated_ssh="1"
+	fi
 fi
 
 if ( [ "${updated_ssh}" = "1" ] )

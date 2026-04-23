@@ -57,6 +57,23 @@ fi
 /bin/chown ${SERVER_USER}:root /usr/bin/run
 /bin/chmod 750 /usr/bin/run
 
+/usr/bin/tee /etc/ssh/sshd_config.d/99-hardening.conf > /dev/null <<'EOF'
+PasswordAuthentication no
+PermitRootLogin no
+KbdInteractiveAuthentication no
+AddressFamily inet
+LoginGraceTime 60
+StrictModes yes
+MaxAuthTries 3
+MaxSessions10
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+KerberosAuthentication no
+GSSAPIAuthentication no
+UsePAM no
+X11Forwarding no 
+EOF
+
 if ( [ ! -d ${HOME}/logs/initialbuild ] )
 then
 	/bin/mkdir -p ${HOME}/logs/initialbuild

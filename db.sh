@@ -74,6 +74,8 @@ UsePAM no
 X11Forwarding no 
 EOF
 
+ ${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
+
 if ( [ ! -d ${HOME}/logs/initialbuild ] )
 then
 	/bin/mkdir -p ${HOME}/logs/initialbuild

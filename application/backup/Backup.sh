@@ -108,12 +108,12 @@ ${HOME}/services/datastore/operations/MountDatastore.sh "backup" "distributed" "
 
 if ( [ -f ${websiteDB} ] )
 then
-        backup_id="`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "${backup_file}.BACKUP" "${period}${provider_id}" | /usr/bin/wc -l`"
-        backup_id="`/usr/bin/expr ${backup_id} + 1`"
+      #  backup_id="`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "${backup_file}.BACKUP" "${period}${provider_id}" | /usr/bin/wc -l`"
+      #  backup_id="`/usr/bin/expr ${backup_id} + 1`"
 
         if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${period}${provider_id}"`" != "" ] )
         then
-                ${HOME}/services/datastore/operations/MoveDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.BACKUP.${backup_id}" "distributed" "${period}${provider_id}"
+                ${HOME}/services/datastore/operations/MoveDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.BACKUP.`/usr/bin/date +%F-%Hhr`" "distributed" "${period}${provider_id}"
         fi
 
         /bin/systemd-inhibit --why="Persisting database to datastore" ${HOME}/services/datastore/operations/PutToDatastore.sh "backup" "${websiteDB}" "root" "distributed" "no" "${period}${provider_id}"

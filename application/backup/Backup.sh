@@ -113,7 +113,7 @@ then
 
         if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${period}${provider_id}"`" != "" ] )
         then
-                ${HOME}/services/datastore/operations/MoveDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.BACKUP.`/usr/bin/date +%F-%Hhr`" "distributed" "${period}${provider_id}"
+                ${HOME}/services/datastore/operations/MoveDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.ARCHIVE.`/usr/bin/date +%F-%Hhr`" "distributed" "${period}${provider_id}"
         fi
 
         /bin/systemd-inhibit --why="Persisting database to datastore" ${HOME}/services/datastore/operations/PutToDatastore.sh "backup" "${websiteDB}" "root" "distributed" "no" "${period}${provider_id}"

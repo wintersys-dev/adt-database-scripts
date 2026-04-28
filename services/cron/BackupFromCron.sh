@@ -30,6 +30,30 @@ MULTI_REGION="`${HOME}/utilities/config/ExtractConfigValue.sh 'MULTIREGION'`"
 
 if ( [ "${MULTI_REGION}" = "1" ] )
 then
+	if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
+	then
+        /bin/rm ${HOME}/runtime/datastore_workarea/time_backup_written
+	fi
+
+	if ( [ ! -d ${HOME}/runtime/datastore_workarea ] )
+	then
+		/bin/mkdir -p ${HOME}/runtime/datastore_workarea
+	fi
+
+	${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "time_backup_written" "${HOME}/runtime/datastore_workarea" "${periodicity}"
+
+	if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
+	then
+        current_time="`/usr/bin/date +%s`"
+        backup_time="`/bin/cat ${HOME}/runtime/datastore_workarea/time_backup_written`"
+        if ( [ "`/usr/bin/expr ${current_time} - ${backup_time}`" -lt "300" ] )
+        then
+                exit
+        fi
+	fi
+
+	/bin/sleep "`/usr/bin/shuf -i1-300 -n1`"
+
 	if ( [ "`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "DB_BACKUP_RUNNING"`" != "" ] )
 	then
 		if ( [ "`${HOME}/services/datastore/config/wrapper/AgeOfDatastoreFile.sh "config" "DB_BACKUP_RUNNING"`" -gt "300" ] )

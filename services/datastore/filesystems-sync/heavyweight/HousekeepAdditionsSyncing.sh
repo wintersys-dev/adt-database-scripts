@@ -29,7 +29,10 @@ additions="`${HOME}/services/datastore/operations/ListFromDatastore.sh "${bucket
 
 for addition in ${additions}
 do
-        if ( [ "`${HOME}/services/datastore/operations/AgeOfDatastoreFile.sh "${bucket_type}" "filesystem-sync/${bucket_type}/additions/${addition}" "${target_directory}"`" -gt "60" ] )
+        current_time="`/usr/bin/date +%s`"
+        processing_time="`/bin/echo ${addition} | /usr/bin/awk -F'-' '{print $2}'`"
+        
+        if ( [ "`/usr/bin/expr ${current_time} - ${processing_time}`" -gt "60" ] )
         then
                 ${HOME}/services/datastore/operations/DeleteFromDatastore.sh "${bucket_type}" "filesystem-sync/${bucket_type}/additions/${addition}" "distributed" "${target_directory}"
         fi

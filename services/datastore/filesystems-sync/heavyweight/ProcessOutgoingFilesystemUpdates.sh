@@ -26,21 +26,16 @@
 target_directory="${1}"
 bucket_type="${2}"
 
-exclude_list=`${HOME}/application/configuration/GetApplicationConfigFilename.sh`
 machine_ip="`${HOME}/utilities/processing/GetIP.sh`"
 WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"
+processing_time="`/usr/bin/date +%s`"
 
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh PERSISTASSETSTODATASTORE:1`" = "0" ] )
+if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh PERSISTASSETSTODATASTORE:1`" = "1" ] )
 then
-        exclude_list="${exclude_list} `/usr/bin/mount | /bin/grep -Eo "${target_directory}.* " | /usr/bin/awk '{print $1}' | /usr/bin/tr '\n' ' ' | /bin/sed 's;'${target_directory}'/;;g'`"
+        exclude_list="`/usr/bin/mount | /bin/grep -Eo "${target_directory}.* " | /usr/bin/awk '{print $1}' | /usr/bin/tr '\n' ' ' | /bin/sed 's;'${target_directory}'/;;g'`"
 fi
 
-exclude_command=""
-if ( [ "${exclude_list}" != "" ] )
-then
-        /bin/echo "${exclude_list}" | /bin/tr ' ' '\n' | /bin/sed '/^$/d' | /bin/sed -e 's;^/;;' -e 's;^;/;' > ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/exclusion_list.dat
-        exclude_command="--exclude-from ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/exclusion_list.dat"
-fi
+exclude_command="--exclude-from ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/exclusion_list.dat"
 
 first_run="0"
 if ( [ ! -d ${target_directory}1 ] )
@@ -48,8 +43,8 @@ then
         first_run="1"
 fi
 
-additions_command='cd '${target_directory}' ; /usr/bin/rsync -ri --dry-run --ignore-existing '${exclude_command}'  '${target_directory}'/ '${target_directory}'1/ | /usr/bin/cut -d" " -f2 | /bin/sed -e "s;^;\./;g" -e "/.*\/$/d" | /usr/bin/cpio -pdmvu '${target_directory}'1 2>&1 | /bin/grep "^/" | /bin/sed "s;'${target_directory}'1/;;g" | /usr/bin/tr " " "\\n"'
-modifieds_command='cd '${target_directory}'1 ; /usr/bin/rsync -ri --dry-run --checksum '${exclude_command}' '${target_directory}'/ '${target_directory}'1/ | /usr/bin/cut -d" " -f2 | /bin/sed -e "s;^;\./;g" -e  "/.*\/$/d" | /usr/bin/cpio -pdmvu '${target_directory}'1 2>&1 | /bin/grep "^/" | /bin/sed "s;'${target_directory}'1/;;g" | /usr/bin/tr " " "\\n"'
+additions_command='cd '${target_directory}' ; /usr/bin/rsync -ri --dry-run --ignore-existing '${exclude_command}'  '${target_directory}'/ '${target_directory}'1/ | /bin/grep -v "skipping non-regular file" | /usr/bin/cut -d" " -f2 | /bin/sed -e "s;^;\./;g" -e "/.*\/$/d" | /usr/bin/cpio -pdmvu '${target_directory}'1 2>&1 | /bin/grep "^/"  | /bin/sed "s;'${target_directory}'1/;;g" | /usr/bin/tr " " "\\n"'
+modifieds_command='cd '${target_directory}'1 ; /usr/bin/rsync -ri --dry-run --checksum '${exclude_command}' '${target_directory}'/ '${target_directory}'1/ | /bin/grep -v "skipping non-regular file" | /usr/bin/cut -d" " -f2 | /bin/sed -e "s;^;\./;g" -e  "/.*\/$/d" | /usr/bin/cpio -pdmvu '${target_directory}'1 2>&1 | /bin/grep "^/" | /bin/sed "s;'${target_directory}'1/;;g" | /usr/bin/tr " " "\\n"'
 additions=""
 additions=`eval ${additions_command}`
 modifieds=`eval ${modifieds_command}`
@@ -60,20 +55,25 @@ then
         exit
 fi
 
-/bin/touch ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log
+/bin/touch ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log
 
 for file in ${additions}
 do
-        /bin/echo "${target_directory}/${file}" | /bin/sed 's:/\./:/:g' >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log
-        /bin/echo "${target_directory}1/${file}" | /bin/sed 's:/\./:/:g' >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log
+        /bin/echo "${target_directory}/${file}" | /bin/sed 's:/\./:/:g' >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log
+        /bin/echo "${target_directory}1/${file}" | /bin/sed 's:/\./:/:g' >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log
 done 
 
-if ( [ -s ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log ] )
+if ( [ -s ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log ] )
 then
-        /usr/bin/tar cfzp ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.tar.gz -T ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log  --same-owner --same-permissions
+        /usr/bin/tar cfzp ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.tar.gz -T ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log  --same-owner --same-permissions
 fi
 
-/bin/rm ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.log
+/bin/rm ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.log
+
+/bin/rm ${target_dirctory}1/webroot_sync_timestamp.del 2>/dev/null
+
+time_deletions_processed="`/usr/bin/date +%s`"
+/bin/echo "${time_deletions_processed}" > ${target_dirctory}1/webroot_sync_timestamp.del
 
 deletes_command='/usr/bin/rsync --dry-run -vr '${exclude_command}' '${target_directory}'1/ '${target_directory}' 2>&1 | /bin/sed -e "/^$/d" -e  "/.*\/$/d" | /usr/bin/tail -n +2 | /usr/bin/head -n -2 | /usr/bin/tr " " "\\n" '
 deletes=`eval ${deletes_command}`
@@ -82,8 +82,8 @@ for file in ${deletes}
 do
         if ( [ -f ${target_directory}1/${file} ] )
         then
-                /bin/echo "${target_directory}/${file}"  >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.log
-                /bin/echo "${target_directory}1/${file}" >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.log
+                /bin/echo "${target_directory}/${file}"  >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-.log
+                /bin/echo "${target_directory}1/${file}" >> ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-.log
                 /bin/rm ${target_directory}1/${file}
         fi
 done
@@ -93,16 +93,16 @@ done
 
 rnd="`/usr/bin/shuf -i1-10000 -n1`"
 
-if ( [ -f ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.tar.gz ] )
+if ( [ -f ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.tar.gz ] )
 then
-        ${HOME}/services/datastore/operations/PutToDatastore.sh  "${bucket_type}" "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.tar.gz" "filesystem-sync/${bucket_type}/additions" "distributed" "no" "${target_directory}"
-        /bin/mv ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.tar.gz ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.${rnd}.tar.gz
-        ${HOME}/services/datastore/operations/PutToDatastore.sh  "${bucket_type}"  "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}.$$.${rnd}.tar.gz" "filesystem-sync/${bucket_type}/historical/additions" "distributed" "no" "${target_directory}"
+        ${HOME}/services/datastore/operations/PutToDatastore.sh  "${bucket_type}" "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.tar.gz" "filesystem-sync/${bucket_type}/additions" "distributed" "no" "${target_directory}"
+        /bin/mv ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-.tar.gz ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-${rnd}.tar.gz
+        ${HOME}/services/datastore/operations/PutToDatastore.sh  "${bucket_type}"  "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/additions/additions.${machine_ip}-${processing_time}-${rnd}.tar.gz" "filesystem-sync/${bucket_type}/historical/additions" "distributed" "no" "${target_directory}"
 fi
 
-if ( [ -f ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.log ] )
+if ( [ -f ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-.log ] )
 then
-        ${HOME}/services/datastore/operations/PutToDatastore.sh   "${bucket_type}"  "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.log" "filesystem-sync/${bucket_type}/deletions" "distributed" "no" "${target_directory}"
-        /bin/mv ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.log ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.${rnd}.log 
-        ${HOME}/services/datastore/operations/PutToDatastore.sh   "${bucket_type}" "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}.$$.${rnd}.log" "filesystem-sync/${bucket_type}/historical/deletions" "distributed" "no" "${target_directory}"
+        ${HOME}/services/datastore/operations/PutToDatastore.sh   "${bucket_type}"  "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-.log" "filesystem-sync/${bucket_type}/deletions" "distributed" "no" "${target_directory}"
+        /bin/mv ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-.log ${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-${rnd}.log 
+        ${HOME}/services/datastore/operations/PutToDatastore.sh   "${bucket_type}" "${HOME}/runtime/filesystem_sync/${bucket_type}/outgoing/deletions/deletions.${machine_ip}-${processing_time}-${rnd}.log" "filesystem-sync/${bucket_type}/historical/deletions" "distributed" "no" "${target_directory}"
 fi

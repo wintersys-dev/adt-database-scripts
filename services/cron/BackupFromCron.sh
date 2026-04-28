@@ -56,16 +56,6 @@ then
 
 	if ( [ "`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "DB_BACKUP_RUNNING"`" != "" ] )
 	then
-		if ( [ "`${HOME}/services/datastore/config/wrapper/AgeOfDatastoreFile.sh "config" "DB_BACKUP_RUNNING"`" -gt "300" ] )
-		then
-			${HOME}/services/datastore/config/wrapper/DeleteFromDatastore.sh "config" "DB_BACKUP_RUNNING"
-		fi
-	fi
-
-	/bin/sleep "`/usr/bin/shuf -i1-60 -n1`"
-
-	if ( [ "`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "DB_BACKUP_RUNNING"`" != "" ] )
-	then
 		exit
 	else
 		${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "DB_BACKUP_RUNNING" "root" "yes"

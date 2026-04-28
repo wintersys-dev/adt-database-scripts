@@ -29,8 +29,12 @@ deletions="`${HOME}/services/datastore/operations/ListFromDatastore.sh "${bucket
 
 for deletion in ${deletions}
 do
-        if ( [ "`${HOME}/services/datastore/operations/AgeOfDatastoreFile.sh "${bucket_type}" "filesystem-sync/${bucket_type}/deletions/${deletion}" "${target_directory}"`" -gt "60" ] )
+        current_time="`/usr/bin/date +%s`"
+        processing_time="`/bin/echo ${deletion} | /usr/bin/awk -F'-' '{print $2}'`"
+        
+        if ( [ "`/usr/bin/expr ${current_time} - ${processing_time}`" -gt "60" ] )
         then
                 ${HOME}/services/datastore/operations/DeleteFromDatastore.sh "${bucket_type}" "filesystem-sync/${bucket_type}/deletions/${deletion}" "distributed" "${target_directory}"
         fi
+        
 done

@@ -202,7 +202,7 @@ fi
 
 if ( [ -f ${HOME}/runtime/firewall.dat ] )
 then
-	ports="`/bin/grep "^DATABASEPORTS" ${HOME}/runtime/firewall.dat | /usr/bin/awk -F':' '{print $NF}'`"
+	ports="`/bin/grep "^DATABASEPORTS" ${HOME}/runtime/firewall.dat | /bin/sed 's/DATABASEPORTS://g'`"
 
 	for port_token in ${ports}
 	do

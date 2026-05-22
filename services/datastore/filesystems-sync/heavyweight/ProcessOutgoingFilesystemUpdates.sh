@@ -30,7 +30,7 @@ machine_ip="`${HOME}/utilities/processing/GetIP.sh`"
 WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"
 processing_time="`/usr/bin/date +%s`"
 
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh PERSISTASSETSTODATASTORE:1`" = "1" ] )
+if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh PERSISTASSETSTODATASTORE:1`" = "1" ]  || [ "`${HOME}/utilities/config/CheckConfigValue.sh PERSISTASSETSTODATASTORE:2`" = "1" ] )
 then
         exclude_list="`/usr/bin/mount | /bin/grep -Eo "${target_directory}.* " | /usr/bin/awk '{print $1}' | /usr/bin/tr '\n' ' ' | /bin/sed 's;'${target_directory}'/;;g'`"
 fi

@@ -55,6 +55,8 @@ then
         exit
 fi
 
+${HOME}/services/datastore/operations/MountDatastore.sh "backup" "distributed" "${period}${provider_id}"
+
 if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
 then
         /bin/rm ${HOME}/runtime/datastore_workarea/time_backup_written
@@ -104,7 +106,6 @@ fi
 
 cd ${HOME}/backups/
 db_backup="`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${period}${provider_id}"
-${HOME}/services/datastore/operations/MountDatastore.sh "backup" "distributed" "${period}${provider_id}"
 
 if ( [ -f ${websiteDB} ] )
 then

@@ -118,7 +118,7 @@ then
 	fi
 fi
 
-${HOME}/services/security/KnickersUp.sh
+${HOME}/services/security/firewall/KnickersUp.sh
 
 if ( [ "${firewall}" = "ufw" ] && [ -f ${HOME}/runtime/FIREWALL-ACTIVE ] )
 then

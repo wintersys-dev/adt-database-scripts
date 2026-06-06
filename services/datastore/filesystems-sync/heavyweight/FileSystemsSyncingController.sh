@@ -147,7 +147,7 @@ then
         ${HOME}/services/datastore/operations/MountDatastore.sh "${bucket_type}" "distributed" "`/bin/echo ${target_directory} | /bin/sed 's:/:-:g'`"
         if ( [ "`/usr/bin/hostname | /bin/grep 'init-1$'`" != "" ] )
         then
-                ${HOME}/services/datastore/operations/DeleteFromDatastore.sh "${bucket_type}" "*" "distributed" "`/bin/echo ${target_directory} | /bin/sed 's:/:-:g'`"
+                ${HOME}/services/datastore/operations/DeleteFromDatastore.sh "${bucket_type}" "delete-all" "distributed" "`/bin/echo ${target_directory} | /bin/sed 's:/:-:g'`"
         fi
         ${HOME}/services/datastore/filesystems-sync/heavyweight/ProcessIncomingHistoricalFilesystemUpdates.sh "${target_directory}" "${bucket_type}"
 else

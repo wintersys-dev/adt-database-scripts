@@ -18,12 +18,13 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################
 ######################################################################################
-#set -x
+set -x
 
 file_to_delete="${1}"
 count="${2}"
-
 datastore_tool=""
+
+recursive=""
 
 if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd'`" = "1" ] )
 then
@@ -38,26 +39,43 @@ fi
 
 if ( [ "${datastore_tool}" = "/usr/bin/s3cmd" ] )
 then
-        file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/\*$//g'`"
+        if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
+        then
+                recursive=" --recursive"
+                file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
+        fi
+
         host_base="`/bin/grep ^host_base /root/.s3cfg-${count} | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
         datastore_cmd="${datastore_tool} --recursive --force  --config=/root/.s3cfg-${count} --host=https://${host_base} del s3://"
 elif ( [ "${datastore_tool}" = "/usr/bin/s5cmd" ] )
 then
+        if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
+        then
+                file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
+                file_to_delete="${file_to_delete}\*"
+        fi
         host_base="`/bin/grep ^host_base /root/.s5cfg-${count} | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
         datastore_cmd="/usr/bin/s5cmd --credentials-file /root/.s5cfg-${count} --endpoint-url https://${host_base} rm s3://"
 elif ( [ "${datastore_tool}" = "/usr/bin/rclone" ] )
 then
         host_base="`/bin/grep ^endpoint /root/.config/rclone/rclone.conf-${count} | /bin/grep "^endpoint" | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
 
-        include=""
-        if ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
+#       include=""
+#       if ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
+#       then
+#               file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
+#               include="--filter '+ "${file_to_include}"'"
+#               file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
+#       fi
+
+        if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
         then
-                file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
-                include="--filter '+ "${file_to_include}"'"
-                file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
+                file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
+                file_to_delete="${file_to_delete}"
+        else
+                datastore_cmd="${datastore_tool} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
         fi
 
-        datastore_cmd="${datastore_tool} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
 fi
 
-eval ${datastore_cmd}${file_to_delete}
+eval ${datastore_cmd}${file_to_delete} ${recursive}

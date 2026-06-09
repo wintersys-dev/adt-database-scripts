@@ -60,22 +60,18 @@ elif ( [ "${datastore_tool}" = "/usr/bin/rclone" ] )
 then
         host_base="`/bin/grep ^endpoint /root/.config/rclone/rclone.conf-${count} | /bin/grep "^endpoint" | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
 
-#       include=""
-#       if ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
-#       then
-#               file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
-#               include="--filter '+ "${file_to_include}"'"
-#               file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
-#       fi
-
         if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
         then
                 delete_all=' --include "*"'
                 file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
-        else
-                datastore_cmd="${datastore_tool} ${delete_all} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
+        elif ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
+        then
+               file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
+               include="--filter '+ "${file_to_include}"'"
+               file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
         fi
 
+        datastore_cmd="${datastore_tool} ${delete_all} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
 fi
 
 eval ${datastore_cmd}${file_to_delete} ${recursive}

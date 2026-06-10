@@ -62,7 +62,7 @@ then
 
         if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
         then
-                delete_all=' --include "*"'
+                delete_all=" --include '*'"
                 file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
         elif ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
         then

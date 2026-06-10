@@ -18,7 +18,7 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################
 ######################################################################################
-set -x
+#set -x
 
 file_to_delete="${1}"
 count="${2}"
@@ -59,19 +59,24 @@ then
 elif ( [ "${datastore_tool}" = "/usr/bin/rclone" ] )
 then
         host_base="`/bin/grep ^endpoint /root/.config/rclone/rclone.conf-${count} | /bin/grep "^endpoint" | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
-
+        delete_all="0"
         if ( [ "`/bin/echo ${file_to_delete} | /bin/grep 'delete-all$'`" != "" ] )
         then
-                delete_all=" --include \'*\'"
+                delete_all="1"
                 file_to_delete="`/bin/echo ${file_to_delete} | /bin/sed 's/delete-all//g'`"
         elif ( [ "${file_to_delete}" != "" ] && [ "`/bin/echo ${file_to_delete} | /bin/grep '*'`" != "" ] )
         then
-               file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
-               include="--filter '+ "${file_to_include}"'"
-               file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
+                file_to_include="`/bin/echo ${file_to_delete} | /usr/bin/awk -F'/' '{print $NF}'`"
+                include="--filter '+ "${file_to_include}"'"
+                file_to_delete="`/bin/echo ${file_to_delete} | /usr/bin/cut -d'/' -f1`"
         fi
 
-        datastore_cmd="${datastore_tool} ${delete_all} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
+        datastore_cmd="${datastore_tool} --config /root/.config/rclone/rclone.conf-${count} --s3-endpoint ${host_base} ${include} delete s3:"
 fi
 
-eval ${datastore_cmd}${file_to_delete} ${recursive}
+if ( [ "${delete_all}" = "1" ] )
+then
+        eval ${datastore_cmd}${file_to_delete} ${recursive} --include \"*\"
+else
+        eval ${datastore_cmd}${file_to_delete} ${recursive} 
+fi

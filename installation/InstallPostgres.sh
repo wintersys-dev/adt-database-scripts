@@ -82,10 +82,10 @@ do
 				/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 				. /etc/os-release
 			
-				if ( [ "${BUILD_FROM_BACKUP}" = "1" ] )
-				then
-					/bin/sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
-				fi
+			#	if ( [ "${BUILD_FROM_BACKUP}" = "1" ] )
+		#		then
+		#			/bin/sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
+		#		fi
 				
 				${update_command}
 				${install_command} postgresql-${postgres_version}

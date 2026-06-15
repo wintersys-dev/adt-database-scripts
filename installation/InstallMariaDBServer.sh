@@ -63,6 +63,14 @@ do
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
 				if ( [ "${mariadb_version}" = "default" ] )
 				then
+
+/bin/rm -f /etc/apt/sources.list.d/mariadb.sources
+#sudo apt update
+#apt-cache policy mariadb-server
+
+
+
+				
 					${update_command}
 					${install_command} mariadb-server
 				#	/bin/mkdir -p /etc/systemd/system/mariadb.service.d

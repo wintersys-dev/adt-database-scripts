@@ -34,6 +34,8 @@ else
 fi
 
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
+BUILDOS_VERSION="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOSVERSION'`"
+
 
 apt=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
@@ -63,27 +65,14 @@ do
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
 				if ( [ "${mariadb_version}" = "default" ] )
 				then
-					if ( [ ! -d /var/lib/mysql ] )
+					if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
 					then
-						/bin/mkdir -p /var/lib/mysql
-					fi	
-					/bin/chown mysql:mysql /var/lib/mysql
-					${update_command}
-					${install_command} mariadb-server apparmor-utils
-					/usr/sbin/aa-disable /usr/sbin/mysqld
-					/usr/sbin/mysqld --initialize
-
-					/bin/sed -i 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
-					if ( [ ! -d /etc/systemd/system/mariadb.service.d ] )
-					then
-        				/bin/mkdir -p /etc/systemd/system/mariadb.service.d
+						mariadb_version="10.11"
 					fi
-
-					/bin/echo '[Service]
-Environment="MYSQLD_OPTS="
-Environment="_WSREP_NEW_CLUSTER="' >  /etc/systemd/system/mariadb.service.d/adt.conf
-
-					/usr/bin/systemctl daemon-reload
+					if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
+					then
+						mariadb_version="11.8"
+					fi
 				else
 					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
 					${install_command} mariadb-server

@@ -63,22 +63,19 @@ do
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
 				if ( [ "${mariadb_version}" = "default" ] )
 				then
+					if ( [ ! -d /var/lib/mysql ] )
+					then
+						/bin/mkdir -p /var/lib/mysql
+					fi	
+					/bin/chown mysql:mysql /var/lib/mysql
 					${update_command}
 					${install_command} mariadb-server
 
 					/bin/sed -i 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
-
 					if ( [ ! -d /etc/systemd/system/mariadb.service.d ] )
 					then
         				/bin/mkdir -p /etc/systemd/system/mariadb.service.d
 					fi
-
-					if ( [ ! -d /var/lib/mysql ] )
-					then
-						/bin/mkdir -p /var/lib/mysql
-					fi
-
-					/bin/chown mysql:mysql /var/lib/mysql
 
 					/bin/echo '[Service]
 Environment="MYSQLD_OPTS="

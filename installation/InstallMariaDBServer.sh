@@ -63,6 +63,9 @@ do
 				if ( [ "${mariadb_version}" = "official" ] )
 				then
 					eval ${install_command} mariadb-server
+					/bin/echo '[Service]
+Environment="MYSQLD_OPTS=
+Environment="_WSREP_NEW_CLUSTER="' >> /etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf
 				else
 					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
 					eval ${install_command} mariadb-server

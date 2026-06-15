@@ -83,31 +83,32 @@ do
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
+			minor_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MYSQL" | /usr/bin/awk -F':' '{print $NF}'`"
+        	major_version="`/bin/echo ${minor_version} | /usr/bin/cut -d '.' -f 1,2`"
+			
 			if ( [ "${minor_version}" = "default" ] )
 			then
-				${update_command}
-				${install_command} mysql-server
-			else
-				minor_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MYSQL" | /usr/bin/awk -F':' '{print $NF}'`"
-        		major_version="`/bin/echo ${minor_version} | /usr/bin/cut -d '.' -f 1,2`"
-				/usr/bin/wget https://deb.debian.org/debian/pool/main/liba/libaio/libaio1_0.3.113-4_amd64.deb -O /opt/libaio1_0.3.113-4_amd64.deb
-				${install_command} /opt/libaio1_0.3.113-4_amd64.deb
-        		/usr/bin/wget https://dev.mysql.com/get/downloads/mysql-${major_version}/mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
-        		/usr/bin/tar -xvf ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar -C /opt
-        		/bin/rm ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
-	 			${install_command} libmecab2 libnuma1 psmisc 
-				DEBIAN_FRONTEND=noninteractive /usr/sbin/dpkg-preconfigure /opt/mysql-community-server_*.deb
-				/usr/bin/dpkg -i /opt/mysql-common_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-community-client-plugins_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-community-client-core_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-community-client_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-client_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-community-server-core_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-community-server_*.deb
-        		/usr/bin/dpkg -i /opt/mysql-server_*.deb
-        		/bin/rm /opt/*mysql*
+				minor_version="9.7.0"
+				major_version="9.7"
 			fi
-    	fi
+				
+			/usr/bin/wget https://deb.debian.org/debian/pool/main/liba/libaio/libaio1_0.3.113-4_amd64.deb -O /opt/libaio1_0.3.113-4_amd64.deb
+			${install_command} /opt/libaio1_0.3.113-4_amd64.deb
+			/usr/bin/wget https://dev.mysql.com/get/downloads/mysql-${major_version}/mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
+			/usr/bin/tar -xvf ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar -C /opt
+			/bin/rm ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
+			${install_command} libmecab2 libnuma1 psmisc 
+			DEBIAN_FRONTEND=noninteractive /usr/sbin/dpkg-preconfigure /opt/mysql-community-server_*.deb
+			/usr/bin/dpkg -i /opt/mysql-common_*.deb
+			/usr/bin/dpkg -i /opt/mysql-community-client-plugins_*.deb
+			/usr/bin/dpkg -i /opt/mysql-community-client-core_*.deb
+			/usr/bin/dpkg -i /opt/mysql-community-client_*.deb
+			/usr/bin/dpkg -i /opt/mysql-client_*.deb
+			/usr/bin/dpkg -i /opt/mysql-community-server-core_*.deb
+			/usr/bin/dpkg -i /opt/mysql-community-server_*.deb
+			/usr/bin/dpkg -i /opt/mysql-server_*.deb
+			/bin/rm /opt/*mysql*
+		fi
 	fi
 	count="`/usr/bin/expr ${count} + 1`"
 done

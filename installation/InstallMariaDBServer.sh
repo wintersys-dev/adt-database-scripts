@@ -60,21 +60,21 @@ do
 			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
 			then
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
-				if ( [ "${mariadb_version}" = "official" ] )
-				then
+				#if ( [ "${mariadb_version}" = "official" ] )
+				#then
 					eval ${install_command} mariadb-server
-					/bin/mkdir -p /etc/systemd/system/mariadb.service.d
-					/bin/echo '[Service]
-Environment="MYSQLD_OPTS="
-Environment="_WSREP_NEW_CLUSTER="
-Environment="MYSQLD_OPTS="' >> /etc/systemd/system/mariadb.service.d/unset_env_var_empty_fix.conf
-					/usr/bin/systemctl daemon-reload
-					/bin/mkdir /var/lib/mysql
-					/bin/chown mysql:mysql /var/lib/mysql
-				else
-					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
-					eval ${install_command} mariadb-server
-				fi
+				#	/bin/mkdir -p /etc/systemd/system/mariadb.service.d
+			#		/bin/echo '[Service]
+#Environment="MYSQLD_OPTS="
+#Environment="_WSREP_NEW_CLUSTER="
+#Environment="MYSQLD_OPTS="' >> /etc/systemd/system/mariadb.service.d/unset_env_var_empty_fix.conf
+#					/usr/bin/systemctl daemon-reload
+#					/bin/mkdir /var/lib/mysql
+#					/bin/chown mysql:mysql /var/lib/mysql
+#				else
+#					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
+#					eval ${install_command} mariadb-server
+				#fi
 			fi
 
 			/bin/mkdir /var/log/mysql

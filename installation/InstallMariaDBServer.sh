@@ -78,8 +78,10 @@ do
                                 fi
                         fi
 
-                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}"
+                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}" --arch='amd64' --skip-maxscale
                         ${install_command} mariadb-server
+
+						      
                 fi
 
                 /bin/mkdir /var/log/mysql
@@ -104,7 +106,7 @@ do
                                         os_type="debian"
                                         os_version="trixie"
                                 fi
-                                /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os)type}" --os-version="${os_version}" 
+                                /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os)type}" --os-version="${os_version}" --arch='amd64' --skip-maxscale
                                 ${install_command} mariadb-server
                         fi
                 fi

@@ -85,8 +85,8 @@ do
                 /bin/mkdir /var/log/mysql
                 /bin/chown mysql:mysql /var/log/mysql                            
 
-                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
-                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+           #     ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
+           #     ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
         fi
 
         if ( [ "${BUILDOS}" = "debian" ] )
@@ -112,8 +112,8 @@ do
                 /bin/mkdir /var/log/mysql
                 /bin/chown mysql:mysql /var/log/mysql                         
 
-                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
-                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+           #     ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
+           #     ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
         fi
 	fi
 	count="`/usr/bin/expr ${count} + 1`"

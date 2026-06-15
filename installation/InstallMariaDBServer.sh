@@ -67,18 +67,18 @@ do
                                 if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
                                 then
                                         mariadb_version="10.11"
-                                        os-type="ubuntu" 
-                                        os-version="noble"
+                                        os_type="ubuntu" 
+                                        os_version="noble"
                                 fi
                                 if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
                                 then
                                         mariadb_version="11.8"
-                                        os-type="ubuntu" 
-                                        os-version="resolute"
+                                        os_type="ubuntu" 
+                                        os_version="resolute"
                                 fi
                         fi
 
-                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os-type}" --os-version="${os-version}"
+                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}"
                         ${install_command} mariadb-server
                 fi
 
@@ -101,10 +101,10 @@ do
                         else
                                 if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
                                 then
-                                        os-type="debian"
-                                        os-version="trixie"
+                                        os_type="debian"
+                                        os_version="trixie"
                                 fi
-                                /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os-type}" --os-version="${os-version}" 
+                                /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os)type}" --os-version="${os_version}" 
                                 ${install_command} mariadb-server
                         fi
                 fi

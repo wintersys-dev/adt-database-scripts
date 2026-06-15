@@ -65,8 +65,9 @@ do
 					eval ${install_command} mariadb-server
 					/bin/mkdir -p /etc/systemd/system/mariadb.service.d
 					/bin/echo '[Service]
-Environment="MYSQLD_OPTS=
-Environment="_WSREP_NEW_CLUSTER="' >> /etc/systemd/system/mariadb.service.d/unset_env_var_empty_fix.conf
+Environment="MYSQLD_OPTS="
+Environment="_WSREP_NEW_CLUSTER="
+Environment="MYSQLD_OPTS="' >> /etc/systemd/system/mariadb.service.d/unset_env_var_empty_fix.conf
 					/usr/bin/systemctl daemon-reload
 					/bin/mkdir /var/lib/mysql
 					/bin/chown mysql:mysql /var/lib/mysql

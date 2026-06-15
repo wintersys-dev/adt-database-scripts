@@ -19,31 +19,30 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 ####################################################################################
 ####################################################################################
-#set -x
+set -x
 
 if ( [ "${1}" != "" ] )
 then
-	buildos="${1}"
+        buildos="${1}"
 fi
 
 if ( [ "${buildos}" = "" ] )
 then
-	BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
+        BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 else 
-	BUILDOS="${buildos}"
+        BUILDOS="${buildos}"
 fi
 
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 BUILDOS_VERSION="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOSVERSION'`"
 
-
 apt=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
-	apt="/usr/bin/apt"
+        apt="/usr/bin/apt"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
 then
-	apt="/usr/bin/apt-get"
+        apt="/usr/bin/apt-get"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -58,65 +57,73 @@ while ( [ ! -f /usr/bin/mariadbd-safe ] && [ "${count}" -lt "5" ] )
 do
 	if ( [ "${apt}" != "" ] )
 	then
-		if ( [ "${BUILDOS}" = "ubuntu" ] )
-		then
-			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
-			then
-				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
-				if ( [ "${mariadb_version}" = "default" ] )
-				then
-					if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
-					then
-						mariadb_version="10.11"
-					fi
-					if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
-					then
-						mariadb_version="11.8"
-					fi
-				fi
-				
-				/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
-				${install_command} mariadb-server
-			
-			fi
+        if ( [ "${BUILDOS}" = "ubuntu" ] )
+        then
+                if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
+                then
+                        mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
+                        if ( [ "${mariadb_version}" = "default" ] )
+                        then
+                                if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
+                                then
+                                        mariadb_version="10.11"
+                                        os-type="ubuntu" 
+                                        os-version="noble"
+                                fi
+                                if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
+                                then
+                                        mariadb_version="11.8"
+                                        os-type="ubuntu" 
+                                        os-version="resolute"
+                                fi
+                        fi
 
-			/bin/mkdir /var/log/mysql
-			/bin/chown mysql:mysql /var/log/mysql                            
+                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os-type}" --os-version="${os-version}"
+                        ${install_command} mariadb-server
+                fi
 
-			${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
-			${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
-		fi
+                /bin/mkdir /var/log/mysql
+                /bin/chown mysql:mysql /var/log/mysql                            
 
-		if ( [ "${BUILDOS}" = "debian" ] )
-		then
-			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
-			then
-				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+        fi
 
-				if ( [ "${mariadb_version}" = "default" ] )
-				then
-					${install_command} mariadb-server
-				else
-					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
-					${install_command} mariadb-server
-				fi
-			fi
+        if ( [ "${BUILDOS}" = "debian" ] )
+        then
+                if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
+                then
+                        mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
 
-			/bin/mkdir /var/log/mysql
-			/bin/chown mysql:mysql /var/log/mysql                         
+                        if ( [ "${mariadb_version}" = "default" ] )
+                        then
+                                ${install_command} mariadb-server
+                        else
+                                if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
+                                then
+                                        os-type="debian"
+                                        os-version="trixie"
+                                fi
+                                /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os-type}" --os-version="${os-version}" 
+                                ${install_command} mariadb-server
+                        fi
+                fi
 
-			${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
-			${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
-		fi
+                /bin/mkdir /var/log/mysql
+                /bin/chown mysql:mysql /var/log/mysql                         
+
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb enable
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+        fi
 	fi
 	count="`/usr/bin/expr ${count} + 1`"
 done
 
 if ( [ ! -f /usr/bin/mariadbd-safe ] && [ "${count}" = "5" ] )
 then
-	${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR MARIADB" "I believe that mariadb server hasn't installed correctly, please investigate" "ERROR"
+        ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR MARIADB" "I believe that mariadb server hasn't installed correctly, please investigate" "ERROR"
 else
-	/bin/touch ${HOME}/runtime/installedsoftware/InstallMariaDBServer.sh				
+        /bin/touch ${HOME}/runtime/installedsoftware/InstallMariaDBServer.sh
 fi
 
 

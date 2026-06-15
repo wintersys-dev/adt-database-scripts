@@ -70,6 +70,7 @@ do
 					/bin/chown mysql:mysql /var/lib/mysql
 					${update_command}
 					${install_command} mariadb-server
+					mysqld --initialize
 
 					/bin/sed -i 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
 					if ( [ ! -d /etc/systemd/system/mariadb.service.d ] )

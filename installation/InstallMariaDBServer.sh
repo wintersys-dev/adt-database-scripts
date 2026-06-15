@@ -60,8 +60,13 @@ do
 			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
 			then
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
-				/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
-				eval ${install_command} mariadb-server
+				if ( [ "${mariadb_version}" = "official" ] )
+				then
+					eval ${install_command} mariadb-server
+				else
+					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
+					eval ${install_command} mariadb-server
+				fi
 			fi
 
 			/bin/mkdir /var/log/mysql
@@ -76,8 +81,14 @@ do
 			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
 			then
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
-				/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
-				eval ${install_command} mariadb-server     
+
+				if ( [ "${mariadb_version}" = "official" ] )
+				then
+					eval ${install_command} mariadb-server
+				else
+					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
+					eval ${install_command} mariadb-server
+				fi
 			fi
 
 			/bin/mkdir /var/log/mysql

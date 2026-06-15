@@ -160,7 +160,7 @@ fi
 
 
 /bin/echo "${0} Setting up firewall"
-${HOME}/services/security/SetupFirewall.sh
+${HOME}/services/security/firewall/SetupFirewall.sh
 
 cd ${HOME}
 

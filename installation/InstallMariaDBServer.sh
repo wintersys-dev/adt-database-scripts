@@ -73,6 +73,13 @@ do
         				/bin/mkdir -p /etc/systemd/system/mariadb.service.d
 					fi
 
+					if ( [ ! -d /var/lib/mysql ] )
+					then
+						/bin/mkdir -p /var/lib/mysql
+					fi
+
+					/bin/chown mysql:mysql /var/lib/mysql
+
 					/bin/echo '[Service]
 Environment="MYSQLD_OPTS="
 Environment="_WSREP_NEW_CLUSTER="' >  /etc/systemd/system/mariadb.service.d/adt.conf

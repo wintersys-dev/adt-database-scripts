@@ -58,7 +58,7 @@ do
 		then
 			minor_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MYSQL" | /usr/bin/awk -F':' '{print $NF}'`"
 			major_version="`/bin/echo ${minor_version} | /usr/bin/cut -d '.' -f 1,2`"
-			if ( [ "${minor_version}" = "official" ] )
+			if ( [ "${minor_version}" = "default" ] )
 			then
 				${update_command}
 				${install_command} mysql-server
@@ -83,7 +83,7 @@ do
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
-			if ( [ "${minor_version}" = "official" ] )
+			if ( [ "${minor_version}" = "default" ] )
 			then
 				${update_command}
 				${install_command} mysql-server

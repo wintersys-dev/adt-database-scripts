@@ -66,7 +66,7 @@ do
 					${update_command}
 					${install_command} mariadb-server
 
-					/bin/sed 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
+					/bin/sed -i 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
 
 					if ( [ ! -d /etc/systemd/system/mariadb.service.d ] )
 					then

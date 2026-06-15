@@ -63,24 +63,21 @@ do
 				mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
 				if ( [ "${mariadb_version}" = "default" ] )
 				then
-
-/bin/rm -f /etc/apt/sources.list.d/mariadb.sources
-#sudo apt update
-#apt-cache policy mariadb-server
-
-
-
-				
 					${update_command}
 					${install_command} mariadb-server
-				#	/bin/mkdir -p /etc/systemd/system/mariadb.service.d
-			#		/bin/echo '[Service]
-#Environment="MYSQLD_OPTS="
-#Environment="_WSREP_NEW_CLUSTER="
-#Environment="MYSQLD_OPTS="' >> /etc/systemd/system/mariadb.service.d/unset_env_var_empty_fix.conf
-#					/usr/bin/systemctl daemon-reload
-#					/bin/mkdir /var/lib/mysql
-#					/bin/chown mysql:mysql /var/lib/mysql
+
+					/bin/sed 's/LimitNOFILE=.*/LimitNOFILE=100000/' /usr/lib/systemd/system/mariadb.service
+
+					if ( [ ! -d /etc/systemd/system/mariadb.service.d ] )
+					then
+        				/bin/mkdir -p /etc/systemd/system/mariadb.service.d
+					fi
+
+					/bin/echo '[Service]
+Environment="MYSQLD_OPTS="
+Environment="_WSREP_NEW_CLUSTER="' >  /etc/systemd/system/mariadb.service.d/adt.conf
+
+					/usr/bin/systemctl daemon-reload
 				else
 					/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}"    
 					${install_command} mariadb-server

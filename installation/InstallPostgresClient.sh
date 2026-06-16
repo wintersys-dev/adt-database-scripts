@@ -60,7 +60,7 @@ do
 				then
 					${update_command}
 					${install_command} postgresql-client
-				then
+				else
 					${install_command} postgresql-common
 					/bin/echo "yes" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 					${install_command} curl ca-certificates

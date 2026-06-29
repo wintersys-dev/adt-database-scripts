@@ -21,7 +21,7 @@
 ###################################################################################
 #set -x
 
-#${HOME}/installation/InstallDatabaseServer.sh 
-#${HOME}/installation/InstallDatabaseClient.sh 
+${HOME}/installation/InstallDatabaseServer.sh 
+${HOME}/installation/InstallDatabaseClient.sh 
 
 /bin/touch ${HOME}/runtime/DATABASE_SYSTEM_INSTALLED

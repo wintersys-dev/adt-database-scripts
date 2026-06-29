@@ -64,10 +64,7 @@ then
 	/usr/bin/mariadb -A --force -u root -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
-#/bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/my.cnf
-#/bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/my.cnf
-
-/bin/cat ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config >> /etc/mysql/my.cnf
+/bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/my.cnf
 /bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/my.cnf
 
 ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart

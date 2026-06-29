@@ -68,16 +68,16 @@ do
 						else
                         	if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
                             then
-                            	mariadb_version="10.11"
                             	os_type="ubuntu" 
                             	os_version="noble"
                         	fi
                         	if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
                         	then
-                            	mariadb_version="11.8"
                             	os_type="ubuntu" 
                             	os_version="resolute"
                             fi
+							#At the time of writing this script doesn't support Ubuntu 26.04 so the default for the OS will have to be used
+							#until such time as the script supports it and then you should be all set to use non default versions on 26.04
 							/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}" --arch='amd64' --skip-maxscale
                         	${install_command} mariadb-server
                         fi  

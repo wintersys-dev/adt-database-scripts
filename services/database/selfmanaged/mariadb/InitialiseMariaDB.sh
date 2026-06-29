@@ -65,7 +65,7 @@ then
 fi
 
 /bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/my.cnf
-/bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/my.cnf
+/bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/mariadb.conf.d/my.cnf
 
 ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
 

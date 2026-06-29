@@ -64,24 +64,23 @@ do
                         mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
                         if ( [ "${mariadb_version}" = "default" ] )
                         then
-                                if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
-                                then
-                                        mariadb_version="10.11"
-                                        os_type="ubuntu" 
-                                        os_version="noble"
-                                fi
-                                if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
-                                then
-                                        mariadb_version="11.8"
-                                        os_type="ubuntu" 
-                                        os_version="resolute"
-                                fi
-                        fi
-
-                        /usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}" --arch='amd64' --skip-maxscale
-                        ${install_command} mariadb-server
-
-						      
+							${install_command} mariadb-server
+						else
+                        	if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
+                            then
+                            	mariadb_version="10.11"
+                            	os_type="ubuntu" 
+                            	os_version="noble"
+                        	fi
+                        	if ( [ "${BUILDOS_VERSION}" = "26.04" ] )
+                        	then
+                            	mariadb_version="11.8"
+                            	os_type="ubuntu" 
+                            	os_version="resolute"
+                            fi
+							/usr/bin/curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-${mariadb_version}" --os-type="${os_type}" --os-version="${os_version}" --arch='amd64' --skip-maxscale
+                        	${install_command} mariadb-server
+                        fi  
                 fi
 
                 /bin/mkdir /var/log/mysql

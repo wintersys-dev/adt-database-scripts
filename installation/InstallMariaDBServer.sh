@@ -64,8 +64,7 @@ do
     			mariadb_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "MARIADB" | /usr/bin/awk -F':' '{print $NF}'`"
     			if ( [ "${mariadb_version}" = "default" ] )
         		then
-				#	${install_command} mariadb-server
-				:
+					${install_command} mariadb-server
 				else
     				if ( [ "${BUILDOS_VERSION}" = "24.04" ] )
     				then

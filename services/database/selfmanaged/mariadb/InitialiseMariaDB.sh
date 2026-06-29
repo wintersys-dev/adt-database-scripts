@@ -37,6 +37,8 @@ IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 CLOUDHOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'CLOUDHOST'`"
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
+SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
+
 
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
@@ -64,7 +66,7 @@ then
 	/usr/bin/mariadb -A --force -u root -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
-/bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/50-server.cnf
+/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/50-server.cnf
 /bin/sed -i "s/3306/${DB_PORT}/g" /etc/mysql/my.cnf
 /bin/sed -i "s/^#port/port/g" /etc/mysql/my.cnf
 /bin/sed -i "s/^# port/port/g" /etc/mysql/my.cnf

@@ -69,7 +69,5 @@ fi
 /bin/sed -i "s/^#port/port/g" /etc/mysql/my.cnf
 /bin/sed -i "s/^# port/port/g" /etc/mysql/my.cnf
 
-/etc/mysql/mariadb.conf.d/50-server.cnf
-
 ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
 

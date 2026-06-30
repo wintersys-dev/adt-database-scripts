@@ -21,7 +21,11 @@
 ###################################################################################
 #set -x
 
-${HOME}/installation/InstallDatabaseServer.sh 
-${HOME}/installation/InstallDatabaseClient.sh 
+if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" != "1" ] )
+then
+	${HOME}/installation/InstallDatabaseServer.sh 
+else
+	${HOME}/installation/InstallDatabaseClient.sh 
+fi
 
 /bin/touch ${HOME}/runtime/DATABASE_SYSTEM_INSTALLED

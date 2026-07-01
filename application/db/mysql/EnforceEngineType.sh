@@ -22,7 +22,7 @@
 HOME="`/bin/cat /home/homedir.dat`"
 
 #Make absolutely certain we are all on INNODB
-tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /usr/bin/tail -n +2`"
+tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" | /usr/bin/tail -n +2`"
 
 for table in ${tables}
 do

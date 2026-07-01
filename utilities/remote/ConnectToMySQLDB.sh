@@ -65,7 +65,16 @@ if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:D
 then
         HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-        HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
+        if ( [ ! -f ${HOME}/runtime/DATABASE_IP ] )
+        then
+                HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
+                if ( [ "${HOST}" != "" ] )
+                then
+                        /bin/echo ${HOST} > ${HOME}/runtime/DATABASE_IP
+                fi
+        else
+                HOST="`/bin/cat ${HOME}/runtime/DATABASE_IP`"
+        fi
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"

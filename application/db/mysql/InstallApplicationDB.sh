@@ -88,7 +88,7 @@ then
 fi
 
 #Make sure that all our tables are INNODB
-${HOME}/application/db/mysql/EnforceEngineType.sh &
+${HOME}/application/db/mysql/EnforceEngineType.sh 
 
 #We can gain confidence that the installtion went OK by checking for our special marker table
 if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /bin/grep 'zzzz'`" != "" ] )

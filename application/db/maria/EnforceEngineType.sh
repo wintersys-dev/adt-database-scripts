@@ -20,11 +20,11 @@
 #####################################################################################################
 #set -x
 
-tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" | /usr/bin/tail -n +2`"
+tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" "no" "no" | /usr/bin/tail -n +2`"
 
 #Make absolutely certain we are all on INNODB
 
 for table in ${tables}
 do
-	${HOME}/utilities/remote/ConnectToMySQLDB.sh  "ALTER TABLE ${table} ENGINE = INNODB;" 
+	${HOME}/utilities/remote/ConnectToMySQLDB.sh  "ALTER TABLE ${table} ENGINE = INNODB;" "no" "no"
 done

@@ -20,7 +20,7 @@
 #####################################################################################################
 #set -x
 
-tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" "no" "no" | /usr/bin/tail -n +2`"
+tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" "yes" "no"`"
 
 #Make absolutely certain we are all on INNODB
 

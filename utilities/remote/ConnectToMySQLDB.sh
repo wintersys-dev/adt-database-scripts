@@ -29,14 +29,14 @@ SUDO="/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E"
 
 if ( [ -f /usr/bin/mariadb ] )
 then
-	mysql="/usr/bin/mariadb"
+        mysql="/usr/bin/mariadb"
 else
-	mysql="/usr/bin/mysql"
+        mysql="/usr/bin/mysql"
 fi
 
-sql_command="$1"
-raw="$2"  
-override_db="$3"
+sql_command="`/bin/echo $@ | /bin/sed -e 's/ yes //g' -e 's/ no //g' -e 's/ yes$//g' -e 's/ no$//g'`"
+raw="`/bin/echo $@ | /usr/bin/awk '{print $(NF-1)}'`"  
+override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
@@ -44,59 +44,59 @@ DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
 if ( [ "`/bin/echo ${sql_command} | /bin/grep -i 'CREATE DATABASE'`" != "" ] )
 then
-	DB_N=""
+        DB_N=""
 fi
 
 if ( [ "${sql_command}" = "dbaas-init" ] )
 then
-	if ( [ "${override_db}" != "" ] )
-	then
-		DB_N="${override_db}"
-	else
-		DB_N=""
-	fi
-	sql_command=""
+        if ( [ "${override_db}" = "yes" ] )
+        then
+                DB_N="${override_db}"
+        else
+                DB_N=""
+        fi
+        sql_command=""
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
-	HOST2="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databasepublicip/*"`"
+        HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
+        HOST2="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databasepublicip/*"`"
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 
-if ( [ "${raw}" != "raw" ] )
+if ( [ "${raw}" != "yes" ] )
 then
-	if ( [ "${sql_command}" != "" ]  )
-	then
-		${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
-		if ( [ "$?" != "0" ] )
-		then
-			${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
-		fi
-	else
-		${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
-		if ( [ "$?" != "0" ] )
-		then
-			${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
-		fi
-	fi
+        if ( [ "${sql_command}" != "" ]  )
+        then
+                ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
+                if ( [ "$?" != "0" ] )
+                then
+                        ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
+                fi
+        else
+                ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
+                if ( [ "$?" != "0" ] )
+                then
+                        ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
+                fi
+        fi
 else
-	if ( [ "${sql_command}" != "" ]  )
-	then
-		${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
-		if ( [ "$?" != "0" ] )
-		then
-			${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
-		fi
-	else
-		${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
-		if ( [ "$?" != "0" ] )
-		then
-			${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
-		fi
-	fi
+        if ( [ "${sql_command}" != "" ]  )
+        then
+                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
+                if ( [ "$?" != "0" ] )
+                then
+                        ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
+                fi
+        else
+                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
+                if ( [ "$?" != "0" ] )
+                then
+                        ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
+                fi
+        fi
 fi

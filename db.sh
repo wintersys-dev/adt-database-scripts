@@ -75,7 +75,7 @@ X11Forwarding no" > /etc/ssh/sshd_config.d/99-hardening.conf
 ${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
 
 #/bin/sed -i "s/managed=false/managed=true/" /etc/NetworkManager/NetworkManager.conf
-/bin/sed -i "s/^unmanaged-devices.*/unmanaged-devices=none/g" /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
+#/bin/sed -i "s/^unmanaged-devices.*/unmanaged-devices=none/g" /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
 ${HOME}/utilities/processing/RunServiceCommand.sh NetworkManager restart
 
 if ( [ ! -d ${HOME}/logs/initialbuild ] )

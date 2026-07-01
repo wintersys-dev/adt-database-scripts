@@ -18,7 +18,8 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #####################################################################################################
 #####################################################################################################
-#set -x
+set -x
+	/bin/ls -l ${HOME}/utilities/remote/ConnectToMySQLDB.sh
 
 tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" | /usr/bin/tail -n +2`"
 
@@ -26,5 +27,6 @@ tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" | /usr/bin/t
 
 for table in ${tables}
 do
+	/bin/ls -l ${HOME}/utilities/remote/ConnectToMySQLDB.sh
 	${HOME}/utilities/remote/ConnectToMySQLDB.sh  "ALTER TABLE ${table} ENGINE = INNODB;"
 done

@@ -34,10 +34,12 @@ else
         mysql="/usr/bin/mysql"
 fi
 
-
-sql_command="`/bin/echo $@ | /bin/sed -e 's/ yes //g' -e 's/ no //g' -e 's/ yes//g' -e 's/ no//g' -e 's/yes$//g' -e 's/no$//g'`"
-raw="`/bin/echo $@ | /usr/bin/awk '{print $(NF-1)}'`"  
-override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
+if ( [ "$#" != "0" ] )
+then
+        sql_command="`/bin/echo $@ | /bin/sed -e 's/ yes //g' -e 's/ no //g' -e 's/ yes//g' -e 's/ no//g' -e 's/yes$//g' -e 's/no$//g'`"
+        raw="`/bin/echo $@ | /usr/bin/awk '{print $(NF-1)}'`"  
+        override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
+fi
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"

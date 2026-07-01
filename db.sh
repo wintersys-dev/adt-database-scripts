@@ -222,7 +222,7 @@ ${HOME}/services/email/SendEmail.sh "A DATABASE HAS BEEN SUCCESSFULLY BUILT" "A 
 /bin/touch ${HOME}/runtime/DONT_MESS_WITH_THESE_FILES-SYSTEM_BREAK
 /usr/bin/touch ${HOME}/runtime/DATABASE_READY
 
-${HOME}/utilities/security/EnforcePermissions.sh &
+#${HOME}/utilities/security/EnforcePermissions.sh &
 
 
 

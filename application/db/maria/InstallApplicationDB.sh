@@ -86,7 +86,7 @@ then
 fi 
 
 #Make sure all tables are set to INNODB in our new database
-${HOME}/application/db/maria/EnforceEngineType.sh &
+${HOME}/application/db/maria/EnforceEngineType.sh 
 
 #And so we can gain confidence that our database has installed correctly by looking for our special marker table
 if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /bin/grep 'zzzz'`" != "" ] )

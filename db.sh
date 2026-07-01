@@ -151,6 +151,9 @@ ${HOME}/utilities/config/StoreConfigValue.sh 'MYPUBLICIP' "`${HOME}/utilities/pr
 
 cd ${HOME}
 
+/bin/ls -l ${HOME}/utilities/security/EnforcePermissions.sh
+/usr/bin/run ${HOME}/utilities/security/EnforcePermissions.sh
+
 /bin/echo "${0} Installing Datastore tools"
 ${HOME}/services/datastore/InitialiseDatastoreSettings.sh
 
@@ -183,6 +186,7 @@ fi
 
 /bin/ls -l ${HOME}/utilities/remote/ConnectToMySQLDB.sh
 /bin/ls -l ${HOME}/utilities/config/ExtractBuildStyleValues.sh
+/bin/ls -l ${HOME}/utilities/security/EnforcePermissions.sh
 
 if ( ( [ "${MULTI_REGION}" = "0" ] || ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "1" ] ) ) &&  [ "${DB_INSTALL_MODE}" != "2" ] )
 then

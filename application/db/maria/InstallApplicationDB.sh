@@ -89,7 +89,7 @@ fi
 ${HOME}/application/db/maria/EnforceEngineType.sh 
 
 #And so we can gain confidence that our database has installed correctly by looking for our special marker table
-if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /bin/grep 'zzzz'`" != "" ] )
+if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' "yes" "no" | /bin/grep 'zzzz'`" != "" ] )
 then
 	/bin/echo "Successfully installed a new application into the database"
 	${HOME}/services/email/SendEmail.sh "A new application has been installed in your database" "A new application has been installed in your database" "INFO"

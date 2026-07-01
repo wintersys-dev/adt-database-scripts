@@ -26,5 +26,5 @@ tables="`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /usr/bin/t
 
 for table in ${tables}
 do
-	${HOME}/utilities/remote/ConnectToMySQLDB.sh "ALTER TABLE ${table} ENGINE = INNODB;" &
+	${HOME}/utilities/remote/ConnectToMySQLDB.sh "ALTER TABLE ${table} ENGINE = INNODB;" 
 done

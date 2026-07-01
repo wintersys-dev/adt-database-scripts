@@ -64,41 +64,23 @@ then
         HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
         HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
-        HOST2="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databasepublicip/*"`"
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
-
 
 if ( [ "${raw}" != "yes" ] )
 then
         if ( [ "${sql_command}" != "" ]  )
         then
                 ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
-                if ( [ "$?" != "0" ] )
-                then
-                        ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
-                fi
         else
                 ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
-                if ( [ "$?" != "0" ] )
-                then
-                        ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
-                fi
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
-                if ( [ "$?" != "0" ] )
-                then
-                        ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}" -e "${sql_command}"
-                fi
+                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host=${HOST} --port=${DB_PORT} -e "${sql_command}" 
         else
                 ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
-                if ( [ "$?" != "0" ] )
-                then
-                        ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST2}" --port="${DB_PORT}"
-                fi
         fi
 fi

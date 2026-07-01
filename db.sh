@@ -151,7 +151,6 @@ ${HOME}/utilities/config/StoreConfigValue.sh 'MYPUBLICIP' "`${HOME}/utilities/pr
 
 cd ${HOME}
 
-/bin/ls -l ${HOME}/utilities/security/EnforcePermissions.sh
 /usr/bin/run ${HOME}/utilities/security/EnforcePermissions.sh
 
 /bin/echo "${0} Installing Datastore tools"

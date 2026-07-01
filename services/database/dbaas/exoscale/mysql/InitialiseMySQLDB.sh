@@ -68,8 +68,8 @@ ${HOME}/utilities/config/StoreConfigValue.sh 'DBPASSWORD' "${DB_P1}"
 /bin/sed -i "s/XXXXDB_UXXXX/${DB_U2}/g" ${HOME}/runtime/mysql-init/initialiseDB-user.sql
 /bin/sed -i "s/XXXXDB_PXXXX/${DB_P2}/g" ${HOME}/runtime/mysql-init/initialiseDB-user.sql
 
-${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "notraw" "defaultdb" < ${HOME}/runtime/mysql-init/initialiseDB-user.sql
-${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "notraw" "defaultdb" < ${HOME}/runtime/mysql-init/initialiseDB.sql
+${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "no" "defaultdb" < ${HOME}/runtime/mysql-init/initialiseDB-user.sql
+${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "no" "defaultdb" < ${HOME}/runtime/mysql-init/initialiseDB.sql
 
 ${HOME}/utilities/config/StoreConfigValue.sh 'DBUSERNAME' "${DB_U2}"       
 ${HOME}/utilities/config/StoreConfigValue.sh 'DBPASSWORD' "${DB_P2}"   

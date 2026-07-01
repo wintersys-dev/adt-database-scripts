@@ -91,7 +91,7 @@ fi
 ${HOME}/application/db/mysql/EnforceEngineType.sh 
 
 #We can gain confidence that the installtion went OK by checking for our special marker table
-if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' | /bin/grep 'zzzz'`" != "" ] )
+if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' "yes" "no" | /bin/grep 'zzzz'`" != "" ] )
 then
 	/bin/echo "${0} `/bin/date` : An application has been installed in the database" 
 	${HOME}/services/email/SendEmail.sh "A new application has been installed in your database" "A new application has been installed in your database" "INFO"

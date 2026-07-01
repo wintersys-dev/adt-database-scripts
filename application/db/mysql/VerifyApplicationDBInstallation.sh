@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" "raw" | /bin/grep "^zzzz$"`" != "" ] )
+if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh "show tables" "yes" "no" | /bin/grep "^zzzz$"`" != "" ] )
 then
         /bin/echo "1" 
 else

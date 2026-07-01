@@ -34,7 +34,8 @@ else
         mysql="/usr/bin/mysql"
 fi
 
-sql_command="`/bin/echo $@ | /bin/sed -e 's/ yes //g' -e 's/ no //g' -e 's/ yes$//g' -e 's/ no$//g'`"
+
+sql_command="`/bin/echo $@ | /bin/sed -e 's/ yes //g' -e 's/ no //g' -e 's/ yes//g' -e 's/ no//g' -e 's/yes$//g' -e 's/no$//g'`"
 raw="`/bin/echo $@ | /usr/bin/awk '{print $(NF-1)}'`"  
 override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
 
@@ -67,6 +68,7 @@ else
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
+
 
 if ( [ "${raw}" != "yes" ] )
 then

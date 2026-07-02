@@ -43,6 +43,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -57,10 +61,10 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd:repo'`" = "1" ] )
 			then
-				eval ${install_command} s3cmd	
+				eval ${install_command} s3cmd ${tail_options}
 			elif ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd:source'`" = "1" ] )
 			then
-				eval ${install_command} python3 python3-dateutil
+				eval ${install_command} python3 python3-dateutil ${tail_options}
 				/usr/bin/ln -s /usr/bin/python3 /usr/bin/python
 				cd /opt
 				${HOME}/services/git/GitClone.sh "github" "" "s3tools" "s3cmd" ""
@@ -75,10 +79,10 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd:repo'`" = "1" ] )
 			then
-				eval ${install_command} s3cmd
+				eval ${install_command} s3cmd ${tail_options}
 			elif ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd:source'`" = "1" ] )
 			then
-				eval ${install_command} python3 python3-dateutil
+				eval ${install_command} python3 python3-dateutil ${tail_options}
 				/usr/bin/ln -s /usr/bin/python3 /usr/bin/python
 				cd /opt
 				${HOME}/services/git/GitClone.sh "github" "" "s3tools" "s3cmd" ""

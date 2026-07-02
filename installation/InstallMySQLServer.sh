@@ -46,6 +46,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -64,12 +68,12 @@ do
 			if ( [ "${minor_version}" = "default" ] )
 			then
 				${update_command}
-				${install_command} mysql-server
+				${install_command} mysql-server ${tail_options}
 			else
 				/usr/bin/wget https://dev.mysql.com/get/downloads/mysql-${major_version}/mysql-server_${minor_version}-1ubuntu${BUILDOS_VERSION}_amd64.deb-bundle.tar		
 				/usr/bin/tar -xvf ./mysql-server_${minor_version}-1ubuntu${BUILDOS_VERSION}_amd64.deb-bundle.tar -C /opt
   				/bin/rm ./mysql-server_${minor_version}-1ubuntu${BUILDOS_VERSION}_amd64.deb-bundle.tar
-				${install_command} libmecab2
+				${install_command} libmecab2 ${tail_options}
   
 				DEBIAN_FRONTEND=noninteractive /usr/sbin/dpkg-preconfigure ./mysql-community-server_*.deb
   				/usr/bin/dpkg -i /opt/mysql-common_*.deb
@@ -97,11 +101,11 @@ do
 				
 		#	/usr/bin/wget https://deb.debian.org/debian/pool/main/liba/libaio/libaio1_0.3.113-4_amd64.deb -O /opt/libaio1_0.3.113-4_amd64.deb
 	#		${install_command} /opt/libaio1_0.3.113-4_amd64.deb
-			${install_command} libaio1t64
+			${install_command} libaio1t64 ${tail_options}
 			/usr/bin/wget https://dev.mysql.com/get/downloads/mysql-${major_version}/mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
 			/usr/bin/tar -xvf ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar -C /opt
 			/bin/rm ./mysql-server_${minor_version}-1debian${BUILDOS_VERSION}_amd64.deb-bundle.tar
-			${install_command} libmecab2 libnuma1 psmisc 
+			${install_command} libmecab2 libnuma1 psmisc ${tail_options}
 			DEBIAN_FRONTEND=noninteractive /usr/sbin/dpkg-preconfigure /opt/mysql-community-server_*.deb
 			/usr/bin/dpkg -i /opt/mysql-common_*.deb
 			/usr/bin/dpkg -i /opt/mysql-community-client-plugins_*.deb

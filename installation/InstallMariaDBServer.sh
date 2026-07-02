@@ -36,26 +36,28 @@ fi
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 BUILDOS_VERSION="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOSVERSION'`"
 
-apt=""
+manager=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
-        apt="/usr/bin/apt"
+	manager="/usr/bin/apt"
+	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
 then
-        apt="/usr/bin/apt-get"
+	manager="/usr/bin/apt-get"
+	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-update_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y update "
-install_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y install " 
-purge_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y purge " 
-auto_remove_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y autoremove " 
-auto_clean_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y autoclean " 
+install_command="${manager} ${options} install "
+update_command="${manager} ${options} update "
+purge_command="${manager} ${options} purge " 
+auto_remove_command="${manager} ${options} autoremove " 
+auto_clean_command="${manager} ${options} autoclean " 
 
 count="0"
 while ( [ ! -f /usr/bin/mariadbd-safe ] && [ "${count}" -lt "5" ] )
 do
-	if ( [ "${apt}" != "" ] )
+	if ( [ "${manager}" != "" ] )
 	then
         if ( [ "${BUILDOS}" = "ubuntu" ] )
         then

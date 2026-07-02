@@ -33,22 +33,24 @@ else
 fi
 HOME="`/bin/cat /home/homedir.dat`"
 
-apt=""
+manager=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
-        apt="/usr/bin/apt"
+	manager="/usr/bin/apt"
+	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
 then
-        apt="/usr/bin/apt-get"
+	manager="/usr/bin/apt-get"
+	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-install_command="${apt} -o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y install "
+install_command="${manager} ${options} install "
 
 count="0"
 while ( ( [ ! -x /usr/bin/freshclam ] || [ ! -x /usr/bin/clamscan ] ) && [ "${count}" -lt "5" ] )
 do
-        if ( [ "${apt}" != "" ] )
+        if ( [ "${manager}" != "" ] )
         then
                 if ( [ "${BUILDOS}" = "ubuntu" ] )
                 then

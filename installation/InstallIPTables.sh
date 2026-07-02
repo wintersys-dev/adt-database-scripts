@@ -45,6 +45,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -62,11 +66,11 @@ do
 				/usr/sbin/ufw disable                                                                          
 			fi                                                                                                      
 
-			eval ${install_command} iptables                 
+			eval ${install_command} iptables ${tail_options}               
 			/bin/echo iptables-persistent iptables-persistent/autosave_v4 boolean true | /usr/bin/sudo debconf-set-selections 
 			/bin/echo iptables-persistent iptables-persistent/autosave_v4 boolean true | /usr/bin/sudo debconf-set-selections 
-			eval ${install_command} netfilter-persistent     
-			eval ${install_command} iptables-persistent      
+			eval ${install_command} netfilter-persistent  ${tail_options}   
+			eval ${install_command} iptables-persistent  ${tail_options}   
 		fi
 
 		if ( [ "${BUILDOS}" = "debian" ] )
@@ -76,11 +80,11 @@ do
 				/usr/sbin/ufw disable                                                                          
 			fi   
 
-			eval ${install_command} iptables                 
+			eval ${install_command} iptables  ${tail_options}               
 			/bin/echo iptables-persistent iptables-persistent/autosave_v4 boolean true | /usr/bin/sudo debconf-set-selections 
 			/bin/echo iptables-persistent iptables-persistent/autosave_v4 boolean true | /usr/bin/sudo debconf-set-selections 
-			eval ${install_command} netfilter-persistent     
-			eval ${install_command} iptables-persistent    
+			eval ${install_command} netfilter-persistent ${tail_options}  
+			eval ${install_command} iptables-persistent  ${tail_options}
 		fi
 	fi
 	count="`/usr/bin/expr ${count} + 1`"

@@ -67,7 +67,7 @@ do
 				
 				if ( [ "${postgres_version}" = "default" ] )
 				then
-					${update_command} ${tail_options}
+					${update_command}
 					${install_command} postgresql ${tail_options}
 				else
 					${install_command} postgresql-common ${tail_options}
@@ -76,7 +76,7 @@ do
 					/usr/bin/install -d /usr/share/postgresql-common/pgdg
 					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 					. /etc/os-release
-					${update_command} ${tail_options}
+					${update_command}
 					${install_command} postgresql-${postgres_version} ${tail_options}
 				fi
 			fi
@@ -91,7 +91,7 @@ do
 
 				if ( [ "${postgres_version}" = "default" ] )
 				then
-					${update_command} ${tail_options}
+					${update_command}
 					${install_command} postgresql ${tail_options}
 				else
 					${install_command} postgresql-common ${tail_options}
@@ -100,7 +100,7 @@ do
 					/usr/bin/install -d /usr/share/postgresql-common/pgdg
 					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 					. /etc/os-release
-					${update_command} ${tail_options}
+					${update_command}
 					${install_command} postgresql-${postgres_version} ${tail_options}
 				fi
 			fi

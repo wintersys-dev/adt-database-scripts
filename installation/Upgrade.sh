@@ -43,6 +43,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=60 -qq -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -y --allow-downgrades --allow-remove-essential --allow-change-held-packages"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 if ( [ "${manager}" != "" ] )
@@ -50,12 +54,12 @@ then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
 		${HOME}/installation/RemoveUnattendedUpgrades.sh "ubuntu"
-		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade
+		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade ${tail_options}
 	fi
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade
+		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade ${tail_options}
 	fi
 fi
 

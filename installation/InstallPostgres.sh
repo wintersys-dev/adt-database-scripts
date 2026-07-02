@@ -43,6 +43,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -63,17 +67,17 @@ do
 				
 				if ( [ "${postgres_version}" = "default" ] )
 				then
-					${update_command}
-					${install_command} postgresql
+					${update_command} ${tail_options}
+					${install_command} postgresql ${tail_options}
 				else
-					${install_command} postgresql-common
+					${install_command} postgresql-common ${tail_options}
 					/bin/echo "yes" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-					${install_command} curl ca-certificates
+					${install_command} curl ca-certificates ${tail_options}
 					/usr/bin/install -d /usr/share/postgresql-common/pgdg
 					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 					. /etc/os-release
-					${update_command}
-					${install_command} postgresql-${postgres_version}
+					${update_command} ${tail_options}
+					${install_command} postgresql-${postgres_version} ${tail_options}
 				fi
 			fi
 			${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart                                                   
@@ -87,17 +91,17 @@ do
 
 				if ( [ "${postgres_version}" = "default" ] )
 				then
-					${update_command}
-					${install_command} postgresql
+					${update_command} ${tail_options}
+					${install_command} postgresql ${tail_options}
 				else
-					${install_command} postgresql-common
+					${install_command} postgresql-common ${tail_options}
 					/usr/bin/yes | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-					${install_command} curl ca-certificates
+					${install_command} curl ca-certificates ${tail_options}
 					/usr/bin/install -d /usr/share/postgresql-common/pgdg
 					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 					. /etc/os-release
-					${update_command}
-					${install_command} postgresql-${postgres_version}
+					${update_command} ${tail_options}
+					${install_command} postgresql-${postgres_version} ${tail_options}
 				fi
 			fi
 			${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart

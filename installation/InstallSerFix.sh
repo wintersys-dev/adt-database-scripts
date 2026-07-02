@@ -32,15 +32,6 @@ else
 	BUILDOS="${buildos}"
 fi
 
-apt=""
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
-then
-	apt="/usr/bin/apt"
-elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
-then
-	apt="/usr/bin/apt-get"
-fi
-
 cwd="`/usr/bin/pwd`"
 
 count="0"

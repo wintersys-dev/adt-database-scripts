@@ -49,7 +49,6 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 install_command="${manager} ${options} install "
-update_command="${manager} ${options} update "
 purge_command="${manager} ${options} purge " 
 auto_remove_command="${manager} ${options} autoremove " 
 auto_clean_command="${manager} ${options} autoclean " 

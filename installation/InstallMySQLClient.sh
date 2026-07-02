@@ -66,7 +66,7 @@ do
 			major_version="`/bin/echo ${minor_version} | /usr/bin/cut -d '.' -f 1,2`"
 			if ( [ "${minor_version}" = "default" ] )
 			then
-				${update_command}
+				${update_command} ${tail_options}
 				${install_command} mysql-server ${tail_options}
 			else
 				/usr/bin/wget https://dev.mysql.com/get/downloads/mysql-${major_version}/mysql-server_${minor_version}-1ubuntu${BUILDOS_VERSION}_amd64.deb-bundle.tar		

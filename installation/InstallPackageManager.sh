@@ -1,6 +1,6 @@
 #!/bin/sh
 ######################################################################################################
-# Description: This script will perform a software update
+# Description: This script will perform a package manager installation
 # Author: Peter Winter
 # Date: 17/01/2017
 #######################################################################################################
@@ -61,6 +61,19 @@ then
 	then
 		/usr/bin/yes | /usr/bin/dpkg --configure -a
 		DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -o DPkg::Lock::Timeout=-1 install -y -qq apt-utils
+	fi
+fi
+
+if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	if ( [ "${BUILDOS}" = "ubuntu" ] )
+	then
+		${HOME}/installation/InstallNala.sh ${buildos}
+	fi
+
+	if ( [ "${BUILDOS}" = "debian" ] )
+	then
+		${HOME}/installation/InstallNala.sh ${buildos}
 	fi
 fi
 

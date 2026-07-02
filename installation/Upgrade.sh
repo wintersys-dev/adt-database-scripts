@@ -32,26 +32,28 @@ else
 	BUILDOS="${buildos}"
 fi
 
-apt=""
+manager=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
-	apt="/usr/bin/apt"
+	manager="/usr/bin/apt"
+	options="-o DPkg::Lock::Timeout=60 -qq -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -y --allow-downgrades --allow-remove-essential --allow-change-held-packages"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
 then
-	apt="/usr/bin/apt-get"
+	manager="/usr/bin/apt-get"
+	options="-o DPkg::Lock::Timeout=60 -qq -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -y --allow-downgrades --allow-remove-essential --allow-change-held-packages"
 fi
 
-if ( [ "${apt}" != "" ] )
+if ( [ "${manager}" != "" ] )
 then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
 		${HOME}/installation/RemoveUnattendedUpgrades.sh "ubuntu"
-		DEBIAN_FRONTEND=noninteractive ${apt} -qq upgrade -o DPkg::Lock::Timeout=60 -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -y --allow-downgrades --allow-remove-essential --allow-change-held-packages
+		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade
 	fi
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		DEBIAN_FRONTEND=noninteractive ${apt} -qq upgrade -o DPkg::Lock::Timeout=60 -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -y --allow-downgrades --allow-remove-essential --allow-change-held-packages
+		DEBIAN_FRONTEND=noninteractive ${manager} ${options} upgrade
 	fi
 fi
 

@@ -33,6 +33,7 @@ else
 fi
 
 manager=""
+tail_options=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
 	manager="/usr/bin/apt"
@@ -41,6 +42,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -53,14 +58,14 @@ do
 	then
 		if ( [ "${BUILDOS}" = "ubuntu" ] )
 		then
-			${install_command} snapd
+			${install_command} snapd ${tail_options}
 			/usr/bin/snap install aria2c 
 			/bin/ln -s /snap/bin/aria2c /usr/sbin/aria2c 
 		fi
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
-			${install_command} snapd
+			${install_command} snapd ${tail_options}
 			/usr/bin/snap install aria2c 
 			/bin/ln -s /snap/bin/aria2c /usr/sbin/aria2c 
 		fi

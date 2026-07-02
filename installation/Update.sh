@@ -44,23 +44,9 @@ then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-update_command="${manager} ${options} update "
+update_command="${manager} ${options} update " 
 
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
-then
-	if ( [ "${BUILDOS}" = "ubuntu" ] )
-	then
-		${HOME}/installation/RemoveUnattendedUpgrades.sh "ubuntu"
-		eval ${update_command}
-	fi
-
-	if ( [ "${BUILDOS}" = "debian" ] )
-	then
-		eval ${update_command}
-	fi
-fi
-
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
+if ( [ "${manager}" != "" ] )
 then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then

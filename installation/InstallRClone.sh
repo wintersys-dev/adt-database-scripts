@@ -43,6 +43,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -59,11 +63,11 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTOREMOUNTTOOL:rclone:repo'`" = "1" ] || [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:rclone:repo'`" = "1" ] )
 			then
-				eval ${install_command} rclone
+				eval ${install_command} rclone ${tail_options}
 			fi
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTOREMOUNTTOOL:rclone:binary'`" = "1" ] || [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:rclone:binary'`" = "1" ] )		
 			then
-				eval ${install_command} unzip 
+				eval ${install_command} unzip ${tail_options}
 				cd /opt
 				/usr/bin/wget https://downloads.rclone.org/rclone-current-linux-amd64.zip
     			/usr/bin/unzip /opt/rclone*.zip
@@ -92,11 +96,11 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTOREMOUNTTOOL:rclone:repo'`" = "1" ] || [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:rclone:repo'`" = "1" ] )
 			then
-				eval ${install_command} rclone
+				eval ${install_command} rclone ${tail_options}
 			fi
 			if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTOREMOUNTTOOL:rclone:binary'`" = "1" ] || [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:rclone:binary'`" = "1" ] )		
 			then
-				eval ${install_command} unzip 
+				eval ${install_command} unzip ${tail_options}
 				cd /opt
 				/usr/bin/wget https://downloads.rclone.org/rclone-current-linux-amd64.zip
     			/usr/bin/unzip /opt/rclone*.zip

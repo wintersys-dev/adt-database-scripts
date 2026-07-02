@@ -57,12 +57,12 @@ then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
 		${HOME}/installation/RemoveUnattendedUpgrades.sh "ubuntu"
-		eval ${update_command} ${tail_options}
+		eval ${update_command} 
 	fi
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		eval ${update_command} ${tail_options}
+		eval ${update_command}
 	fi
 fi
 

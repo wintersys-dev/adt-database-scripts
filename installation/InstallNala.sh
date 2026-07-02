@@ -37,6 +37,7 @@ if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+	select_mirrors="/usr/bin/nala fetch --fetches 2 --auto -y" 
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -50,11 +51,13 @@ do
 		if ( [ "${BUILDOS}" = "ubuntu" ] )
 		then
 			eval ${install_command} nala
+			${select_mirrors}
 		fi
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
 			eval ${install_command} nala
+			${select_mirrors}
 		fi
 	fi
 	count="`/usr/bin/expr ${count} + 1`"

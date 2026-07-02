@@ -42,6 +42,10 @@ elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" 
 then
 	manager="/usr/bin/apt-get"
 	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
+then
+	manager="/usr/bin/nala"
+	tail_options="-y"
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -56,7 +60,7 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "repo" ] )
 			then
-				eval ${install_command} golang-go
+				eval ${install_command} golang-go ${tail_options}
 			elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "binary" ] )
 			then
 				version="`/usr/bin/curl https://go.dev/dl/?mode=json | /usr/bin/jq -r '.[0].version' | /bin/sed 's/go//g'1`"           
@@ -72,7 +76,7 @@ do
 		then
 			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "repo" ] )
 			then
-				eval ${install_command} golang-go
+				eval ${install_command} golang-go ${tail_options}
 			elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "binary" ] )
 			then
 				version="`/usr/bin/curl https://go.dev/dl/?mode=json | /usr/bin/jq -r '.[0].version' | /bin/sed 's/go//g'1`"           

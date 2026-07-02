@@ -45,7 +45,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 remove_command="${manager} ${options} remove "
 
-if ( [ "${apt}" != "" ] )
+if ( [ "${manager}" != "" ] )
 then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then

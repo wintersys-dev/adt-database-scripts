@@ -26,7 +26,7 @@
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
 
-SUDO="/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E"
+SUDO="/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S "
 
 sql_command="${1}"
 raw="${2}"

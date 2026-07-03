@@ -155,9 +155,9 @@ if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDMACHINEVPC:0`" = "1" 
 then
 	if ( [ "${firewall}" = "ufw" ] )
 	then
-		if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw status | /bin/grep "${SSH_PORT}.*ALLOW.*${BUILD_MACHINE_IP}"`" = "" ] )
+		if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw status | /bin/grep "${SSH_PORT}.*ALLOW.*${BUILD_MACHINE_IP}"`" = "" ] )
 		then
-			/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw allow from ${BUILD_MACHINE_IP} to any port ${SSH_PORT}
+			/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw allow from ${BUILD_MACHINE_IP} to any port ${SSH_PORT}
 			/bin/sleep 2
 			updated="1"
 		fi
@@ -176,12 +176,12 @@ fi
 
 if ( [ "${firewall}" = "ufw" ] )
 then
-	if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw status | /bin/grep "${SSH_PORT}.*ALLOW.*${VPC_IP_RANGE}"`" = "" ] )
+	if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw status | /bin/grep "${SSH_PORT}.*ALLOW.*${VPC_IP_RANGE}"`" = "" ] )
 	then
-		/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw allow from ${VPC_IP_RANGE} to any port ${SSH_PORT}
+		/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw allow from ${VPC_IP_RANGE} to any port ${SSH_PORT}
 		if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "0" ] )
 		then
-			/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw allow from ${VPC_IP_RANGE} to any port ${DB_PORT}
+			/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw allow from ${VPC_IP_RANGE} to any port ${DB_PORT}
 		fi
 		/bin/sleep 5
 		updated="1"
@@ -219,12 +219,12 @@ then
 
 		if ( [ "${firewall}" = "ufw" ] )
 		then
-			if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw status | /bin/grep "${port}.*ALLOW.*${ip_address}"`" = "" ] && [ "${delete}" != "yes" ] )
+			if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw status | /bin/grep "${port}.*ALLOW.*${ip_address}"`" = "" ] && [ "${delete}" != "yes" ] )
 			then
-				/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw allow from ${ip_address} to any port ${port}
+				/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw allow from ${ip_address} to any port ${port}
 				updated="1"
 			else
-				if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S -E /usr/sbin/ufw status | /bin/grep "${port}.*ALLOW"`" != "" ] && [ "${delete}" = "yes" ] )
+				if ( [ "`/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /usr/sbin/ufw status | /bin/grep "${port}.*ALLOW"`" != "" ] && [ "${delete}" = "yes" ] )
 				then
 					/usr/bin/yes | /usr/sbin/ufw delete `/usr/sbin/ufw status numbered | /bin/grep ${port} | /usr/bin/awk -F"[\[\]]" '{print $2}' | /bin/sed 's/ //g'`
 					updated="1"

@@ -28,6 +28,13 @@
 #######################################################################################################
 #set -x
 
+archive_id="${1}"
+
+if ( [ "${archive_id}" != "" ] )
+then
+	archive_id=".${archive_id}"
+fi
+
 if ( [ "${HOME}" = "" ] )
 then
 	export HOME="`/bin/cat /home/homedir.dat`"
@@ -99,7 +106,7 @@ then
 	#${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"
     ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "." "${BUILD_ARCHIVE_CHOICE}"
 	
-	if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz ] )
+	if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} ] )
 	then
 		/bin/tar xvfz ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz -C ${HOME}/backups/installDB
 		/bin/rm ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz

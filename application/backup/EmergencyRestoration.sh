@@ -17,3 +17,5 @@ ${HOME}/services/database/BackupDatabase.sh "${HOME}/runtime/restoration_archive
 ${HOME}/services/database/InitialiseDatabase.sh 
 #${HOME}/application/db/InstallApplicationDB.sh
 
+/bin/rm ${HOME}/runtime/restoration_archives/ARCHIVE_ID
+

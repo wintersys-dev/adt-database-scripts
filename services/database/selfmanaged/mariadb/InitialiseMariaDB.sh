@@ -45,6 +45,11 @@ DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
 DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
+if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
+then
+        DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
+fi
+
 if ( [ ! -d ${HOME}/runtime/mariadb-init ] )
 then
 	/bin/mkdir -p ${HOME}/runtime/mariadb-init

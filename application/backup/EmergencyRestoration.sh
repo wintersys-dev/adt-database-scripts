@@ -9,5 +9,6 @@ then
         /bin/mkdir -p ${HOME}/runtime/restoration_archives
 fi
 
-${HOME}/application/InstallApplication.sh ${archive_id}
-${HOME}/application/configuration/InitialiseApplicationConfiguration.sh
+${HOME}/services/database/InitialiseDatabase.sh
+${HOME}/application/db/InstallApplicationDB.sh ${archive_id}
+

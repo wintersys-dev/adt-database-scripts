@@ -9,6 +9,11 @@ then
         /bin/mkdir -p ${HOME}/runtime/restoration_archives
 fi
 
-${HOME}/services/database/InitialiseDatabase.sh
-${HOME}/application/db/InstallApplicationDB.sh ${archive_id}
+${HOME}/services/database/BackupDatabase.sh "${HOME}/runtime/restoration_archives/restoration_db.tar.gz"
+/bin/tar xvfz ${HOME}/runtime/restoration_archives/restoration_db.tar.gz -C ${HOME}/runtime/restoration_archives
+
+/bin/echo ${archive_id} > ${HOME}/runtime/restoration_archives/ARCHIVE_ID
+
+${HOME}/services/database/InitialiseDatabase.sh 
+#${HOME}/application/db/InstallApplicationDB.sh
 

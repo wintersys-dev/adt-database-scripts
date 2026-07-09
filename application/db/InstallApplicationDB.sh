@@ -108,8 +108,8 @@ then
 
         if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} ] )
         then
-                /bin/tar xvfz ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz -C ${HOME}/backups/installDB
-                /bin/rm ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz
+                /bin/tar xvfz ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} -C ${HOME}/backups/installDB
+                /bin/rm ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id}
         fi
         if ( [ -f ${HOME}/backups/installDB/applicationDB.sql ] )
         then

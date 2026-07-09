@@ -3,7 +3,7 @@ then
         exit
 fi
 
-marker="`${HOME}/services/datastore/operations/ListFromDatastore.sh "config" "ACTIVATE_RESTORATION" | /bin/grep -o "ACTIVATE_RESTORATION.*"
+marker="`${HOME}/services/datastore/operations/ListFromDatastore.sh "config" "ACTIVATE_RESTORATION" | /bin/grep -o "ACTIVATE_RESTORATION.*"`"
 
 if ( [ "${marker}" != "" ] )
 then

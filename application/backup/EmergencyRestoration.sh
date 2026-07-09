@@ -15,7 +15,7 @@ ${HOME}/services/database/BackupDatabase.sh "${HOME}/runtime/restoration_archive
 /bin/echo ${archive_id} > ${HOME}/runtime/restoration_archives/ARCHIVE_ID
 
 ${HOME}/services/database/InitialiseDatabase.sh 
-DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
+DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
 DB_N1="`/bin/echo .${archive_id} | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 /bin/grep -rlZ ${DB_N} ${HOME}/runtime | /usr/bin/xargs -0 /bin/sed -i "s/${DB_N}/${DB_N}${DB_N1}/g"
 ${HOME}/application/db/InstallApplicationDB.sh "${archive_id}"

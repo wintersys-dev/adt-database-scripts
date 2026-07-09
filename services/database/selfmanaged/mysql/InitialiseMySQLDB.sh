@@ -71,6 +71,11 @@ then
 	/usr/bin/mysql -A --force -u root -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
 fi
 
+if ( [ "$?" != "0" ] )
+then
+	/usr/bin/mysql -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+fi
+
 /bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.config /etc/mysql/my.cnf
 /bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/my.cnf
 

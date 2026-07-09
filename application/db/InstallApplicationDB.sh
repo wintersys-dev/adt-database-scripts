@@ -26,37 +26,37 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################################################
 #######################################################################################################
-#set -x
+set -x
 
 archive_id="${1}"
 
 if ( [ "${archive_id}" != "" ] )
 then
-	archive_id=".${archive_id}"
+        archive_id=".${archive_id}"
 fi
 
 if ( [ "${HOME}" = "" ] )
 then
-	export HOME="`/bin/cat /home/homedir.dat`"
+        export HOME="`/bin/cat /home/homedir.dat`"
 fi
 
 if ( [ "${1}" = "force" ] )
 then
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "1" ] )
-	then
-		exit
-	fi
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "1" ] )
+        then
+                exit
+        fi
 
-	if ( [ -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )
-	then
-		/bin/rm ${HOME}/runtime/DB_APPLICATION_INSTALLED
-	fi
+        if ( [ -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )
+        then
+                /bin/rm ${HOME}/runtime/DB_APPLICATION_INSTALLED
+        fi
 fi
 
 
-if ( [ -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] || [ ! -f ${HOME}/runtime/DB_INITIALISED ] )
+if ( ( [ -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] || [ ! -f ${HOME}/runtime/DB_INITIALISED ] ) && [ "${archive_id}" = "" ] )
 then
-	exit
+        exit
 fi
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
@@ -74,68 +74,68 @@ WEBSITE_NAME="`/bin/echo ${WEBSITE_URL} | /usr/bin/awk -F'.' '{print $2}'`"
 
 if ( [ "${BUILD_ARCHIVE_CHOICE}" = "" ] )
 then
-	BUILD_ARCHIVE_CHOICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDARCHIVECHOICE'`"
+        BUILD_ARCHIVE_CHOICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDARCHIVECHOICE'`"
 fi
 
 if ( [ ! -d ${HOME}/backups/installDB ] )
 then
-	/bin/mkdir -p ${HOME}/backups/installDB
+        /bin/mkdir -p ${HOME}/backups/installDB
 else
-	/bin/rm -r ${HOME}/backups/installDB/* 2>/dev/null
+        /bin/rm -r ${HOME}/backups/installDB/* 2>/dev/null
 fi
 
 cd ${HOME}/backups/installDB
 
 if ( [ "${BUILD_ARCHIVE_CHOICE}" = "baseline" ] )
 then
-	${HOME}/services/git/GitClone.sh ${APPLICATION_REPOSITORY_PROVIDER} ${APPLICATION_REPOSITORY_USERNAME} ${APPLICATION_REPOSITORY_OWNER} "${BASELINE_DB_REPOSITORY_NAME}" ${APPLICATION_REPOSITORY_TOKEN}
-	if ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.sql ] )
-	then
-		/bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-	elif ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.psql ] )
-	then
-		/bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
-	else
-		/bin/echo "Counldn't find a suitable database file baseline. Have got to die"
-		${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file baseline" "ERROR"
-		exit
-	fi
-	/bin/rm -r ${HOME}/backups/installDB/*baseline*
+        ${HOME}/services/git/GitClone.sh ${APPLICATION_REPOSITORY_PROVIDER} ${APPLICATION_REPOSITORY_USERNAME} ${APPLICATION_REPOSITORY_OWNER} "${BASELINE_DB_REPOSITORY_NAME}" ${APPLICATION_REPOSITORY_TOKEN}
+        if ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.sql ] )
+        then
+                /bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+        elif ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.psql ] )
+        then
+                /bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
+        else
+                /bin/echo "Counldn't find a suitable database file baseline. Have got to die"
+                ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file baseline" "ERROR"
+                exit
+        fi
+        /bin/rm -r ${HOME}/backups/installDB/*baseline*
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
-	#${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"
-    ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "." "${BUILD_ARCHIVE_CHOICE}"
-	
-	if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} ] )
-	then
-		/bin/tar xvfz ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz -C ${HOME}/backups/installDB
-		/bin/rm ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz
-	fi
-	if ( [ -f ${HOME}/backups/installDB/applicationDB.sql ] )
-	then
-		/bin/mv ${HOME}/backups/installDB/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-	elif ( [ -f ${HOME}/backups/installDB/applicationDB.psql ] )
-	then
-		/bin/mv ${HOME}/backups/installDB/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
-	else
-		/bin/echo "Counldn't find a suitable database file backup. Have got to die"
-		${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file backup" "ERROR"
-		exit
-	fi
+        #${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"
+        ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz.${archive_id}" "." "${BUILD_ARCHIVE_CHOICE}"
+
+        if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} ] )
+        then
+                /bin/tar xvfz ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz -C ${HOME}/backups/installDB
+                /bin/rm ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz
+        fi
+        if ( [ -f ${HOME}/backups/installDB/applicationDB.sql ] )
+        then
+                /bin/mv ${HOME}/backups/installDB/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+        elif ( [ -f ${HOME}/backups/installDB/applicationDB.psql ] )
+        then
+                /bin/mv ${HOME}/backups/installDB/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
+        else
+                /bin/echo "Counldn't find a suitable database file backup. Have got to die"
+                ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file backup" "ERROR"
+                exit
+        fi
 fi
 
 if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql ] && [ "`/usr/bin/tail -n 1 ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql | /bin/grep 'zzzz'`" = "" ] )
 then
-	/bin/echo "Counldn't find a suitable database file. have got to die"
-	${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database dump file to install" "ERROR"
-	exit
+        /bin/echo "Counldn't find a suitable database file. have got to die"
+        ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database dump file to install" "ERROR"
+        exit
 fi
 
 if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql ] && [ "`/usr/bin/tail -n 1 ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql | /bin/grep 'zzzz'`" = "" ] )
 then
-	/bin/echo "Counldn't find a suitable database file. have got to die"
-	${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database dump file to install" "ERROR"
-	exit
+        /bin/echo "Counldn't find a suitable database file. have got to die"
+        ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database dump file to install" "ERROR"
+        exit
 fi
 
 cd ${HOME}
@@ -143,23 +143,27 @@ cd ${HOME}
 #Apply the application branding that we need for this deployment and then install the archive we have obtained as our database 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] )
 then
-	${HOME}/application/branding/ApplyApplicationBranding.sh
-	${HOME}/application/db/maria/InstallApplicationDB.sh
+        ${HOME}/application/branding/ApplyApplicationBranding.sh
+        ${HOME}/application/db/maria/InstallApplicationDB.sh
 
 fi
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ] )
 then
-	${HOME}/application/branding/ApplyApplicationBranding.sh
-	${HOME}/application/db/mysql/InstallApplicationDB.sh
+        ${HOME}/application/branding/ApplyApplicationBranding.sh
+        ${HOME}/application/db/mysql/InstallApplicationDB.sh
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
-	${HOME}/application/branding/ApplyApplicationBranding.sh
-	${HOME}/application/db/postgres/InstallApplicationDB.sh
+        ${HOME}/application/branding/ApplyApplicationBranding.sh
+        ${HOME}/application/db/postgres/InstallApplicationDB.sh
 fi
 
-
+# We reckon all is good if this file exists
+if ( [ ! -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )
+then
+        ${HOME}/services/email/SendEmail.sh "DEFINITE INSTALLATION ERROR" "The application didn't install correctly into the database system" "ERROR"
+fi
 
 # We reckon all is good if this file exists
 if ( [ ! -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )

@@ -39,14 +39,13 @@ CLOUDHOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'CLOUDHOST'`"
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
 
-
-
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
 DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
+		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 

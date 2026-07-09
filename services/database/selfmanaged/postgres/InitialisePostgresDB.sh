@@ -40,6 +40,12 @@ else
 	DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 fi
 
+if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
+then
+		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
+        DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
+fi
+
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
 	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
@@ -75,6 +81,11 @@ then
 	${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
 	/usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+
+	if ( [ "$?" != "0" ] )
+	then
+		/usr/bin/sudo -u ${DB_U}  PGPASSWORD=${DB_P} /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+	fi
 
 	/bin/sed -i '/128/d' ${postgres_config}
 	/bin/sed -i '/template1/d' ${postgres_config}

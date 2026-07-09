@@ -71,6 +71,11 @@ then
 	/usr/bin/mariadb -A --force -u root -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
+if ( [ "$?" != "0" ] )
+then
+	/usr/bin/mariadb -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
+fi
+
 /bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/50-server.cnf
 /bin/sed -i "s/3306/${DB_PORT}/g" /etc/mysql/my.cnf
 /bin/sed -i "s/^#port/port/g" /etc/mysql/my.cnf

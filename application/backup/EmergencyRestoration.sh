@@ -15,7 +15,8 @@ ${HOME}/services/database/BackupDatabase.sh "${HOME}/runtime/restoration_archive
 /bin/echo ${archive_id} > ${HOME}/runtime/restoration_archives/ARCHIVE_ID
 
 ${HOME}/services/database/InitialiseDatabase.sh 
-#${HOME}/application/db/InstallApplicationDB.sh
+/bin/grep -rlZ ${DB_N} . | /usr/bin/xargs -0 /bin/sed -i "s/${DB_N}/${DB_N}.${archive_id}/g"
+${HOME}/application/db/InstallApplicationDB.sh "${archive_id}"
 
 /bin/rm ${HOME}/runtime/restoration_archives/ARCHIVE_ID
 

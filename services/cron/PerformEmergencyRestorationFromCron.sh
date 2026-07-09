@@ -17,7 +17,7 @@ fi
 
 if ( [ -f ${HOME}/application/backup/EmergencyRestoration.sh ] )
 then
-        /bin/rm ${HOME}/application/backup/EmergencyRestoration.sh
+        /bin/rm ${HOME}/runtime/EMERGENCY_RESTORATION_IN_PROGRESS
 fi
 
 

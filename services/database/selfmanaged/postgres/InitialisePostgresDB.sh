@@ -82,6 +82,8 @@ then
 
 	/usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 
+	#Rather than doing this just sed replace the database name in /etc/postgresql/18/main/pg_hba.conf and restart missing the below steps
+
 	if ( [ "$?" != "0" ] )
 	then
 		PGPASSWORD=${DB_P} /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql

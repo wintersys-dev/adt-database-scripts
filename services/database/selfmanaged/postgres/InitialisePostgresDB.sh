@@ -87,7 +87,7 @@ then
 
         if ( [ "$?" != "0" ] )
         then
-                /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+                PGPASSWORD="${DB_P}" /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
         fi
 
         if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )

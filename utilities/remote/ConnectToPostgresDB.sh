@@ -34,7 +34,7 @@ override_db="${3}"
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
+DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
 if ( [ "`/bin/echo ${sql_command} | /bin/grep -i 'CREATE DATABASE'`" != "" ] || [ "`/bin/echo ${sql_command} | /bin/grep -i 'DROP DATABASE'`" != "" ] )
 then

@@ -89,7 +89,7 @@ then
 
 	if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
 	then
-		DB_N_original="`/bin/grep -o "ARCHIVE.* " ${postgres_config} | /usr/bin/sort -u | /usr/bin/uniq`"
+		DB_N_original="`/bin/grep -o "ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq`"
 	else
 		DB_N_original="${DB_N}"
 	fi

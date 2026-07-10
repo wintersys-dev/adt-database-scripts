@@ -82,21 +82,26 @@ then
 
 	/usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 
-	#Rather than doing this just sed replace the database name in /etc/postgresql/18/main/pg_hba.conf and restart missing the below steps
-
-	if ( [ "$?" != "0" ] )
+	if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE'`" != "" ] )
 	then
-		PGPASSWORD=${DB_P} /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+		DB_N_original="`/bin/grep -o "ARCHIVE.* " | /usr/bin/sort -u | /usr/bin/uniq`"
+	else
+		DB_N_original="${DB_N}"
 	fi
 
-	/bin/sed -i '/128/d' ${postgres_config}
-	/bin/sed -i '/template1/d' ${postgres_config}
-	/bin/sed -i "/${DB_N}/d" ${postgres_config}
-	/bin/echo "host       template1            ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
-	/bin/echo "host       template1            ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
-	/bin/echo "host       ${DB_N}              ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
-	/bin/echo "host       ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
-
+	if ( [ "${DB_N_original}" = "${DB_N}" ] )
+	then
+		/bin/sed -i '/128/d' ${postgres_config}
+		/bin/sed -i '/template1/d' ${postgres_config}
+		/bin/sed -i "/${DB_N}/d" ${postgres_config}
+		/bin/echo "host       template1            ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
+		/bin/echo "host       template1            ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+		/bin/echo "host       ${DB_N}              ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
+		/bin/echo "host       ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+	else
+		/bin/sed -i "s/${DB_N_original}/${DB_N}/g" ${postgres_config}
+	fi
+	
 	${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
 fi

@@ -84,11 +84,12 @@ then
 
 	if ( [ "$?" != "0" ] )
 	then
-		/usr/bin/sudo -u ${DB_U}  PGPASSWORD=${DB_P} /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+		PGPASSWORD=${DB_P} /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 	fi
 
 	/bin/sed -i '/128/d' ${postgres_config}
 	/bin/sed -i '/template1/d' ${postgres_config}
+	/bin/sed -i "/${DB_N}/d" ${postgres_config}
 	/bin/echo "host       template1            ${DB_U}          127.0.0.1/32          md5" >> ${postgres_config}
 	/bin/echo "host       template1            ${DB_U}          ${IP_MASK}/16         md5" >> ${postgres_config}
 	/bin/echo "host       ${DB_N}              ${DB_U}          127.0.0.1/32          md5" >> ${postgres_config}

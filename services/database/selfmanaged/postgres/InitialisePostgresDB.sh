@@ -70,6 +70,16 @@ then
                 /bin/mkdir -p ${HOME}/runtime/postgres-init
         fi
 
+        if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
+        then
+                DB_N_original="`/bin/grep -o " .*ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq` "
+        else
+                DB_N_original="`/bin/echo ${DB_N} | /bin/sed 's/_ARCHIVE.*//g'`"
+        fi
+
+        DB_N="`/bin/echo ${DB_N} | /usr/bin/tr '[:upper:]' '[:lower:]'`"
+        DB_N_original="`/bin/echo ${DB_N_original} | /usr/bin/tr '[:upper:]' '[:lower:]'`"
+
         /bin/cp ${HOME}/services/database/selfmanaged/postgres/live/postgres.psql ${HOME}/runtime/postgres-init/initialiseDB.psql
         /bin/sed -i "s/XXXXDB_NXXXX/${DB_N}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
         /bin/sed -i "s/XXXXDB_UXXXX/${DB_U}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
@@ -82,16 +92,6 @@ then
         /bin/sed -i "/^#port/c\        port = ${DB_PORT}" ${postgres_sql_config}
 
         ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
-
-        if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
-        then
-                DB_N_original="`/bin/grep -o " .*ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq` "
-        else
-                DB_N_original="`/bin/echo ${DB_N} | /bin/sed 's/_ARCHIVE.*//g'`"
-        fi
-
-        DB_N="`/bin/echo ${DB_N} | /usr/bin/tr '[:upper:]' '[:lower:]'`"
-        DB_N_original="`/bin/echo ${DB_N_original} | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
         /usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 

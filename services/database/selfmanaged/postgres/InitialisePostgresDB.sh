@@ -82,6 +82,11 @@ then
 
 	/usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 
+	if ( [ "$?" != "0" ] )
+	then
+		/usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+	fi
+
 	if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
 	then
 		DB_N_original="`/bin/grep -o "ARCHIVE.* " ${postgres_config} | /usr/bin/sort -u | /usr/bin/uniq`"

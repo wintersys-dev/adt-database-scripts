@@ -30,83 +30,83 @@ CLOUDHOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'CLOUDHOST'`"
 
 if ( [ -f /tmp/original_credentials.dat ] )
 then
-	DB_U="`/bin/grep DATABASE_USERNAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	DB_P="`/bin/grep DATABASE_PASSWORD /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	DB_N="`/bin/grep DATABASE_NAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	/bin/rm /tmp/original_credentials.dat
+        DB_U="`/bin/grep DATABASE_USERNAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        DB_P="`/bin/grep DATABASE_PASSWORD /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        DB_N="`/bin/grep DATABASE_NAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        /bin/rm /tmp/original_credentials.dat
 else
-	DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
-	DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-	DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
+        DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
+        DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 fi
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
-		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYIP'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYIP'`"
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
-	postgres_config="`/usr/bin/find / -name pg_hba.conf -print | /usr/bin/tail -1`"
-	postgres_pid="`/usr/bin/find / -name postmaster.pid -print | /usr/bin/tail -1`"
-	postgres_sql_config="`/usr/bin/find / -name postgresql.conf -print | /bin/grep etc | /usr/bin/tail -1`"
+        postgres_config="`/usr/bin/find / -name pg_hba.conf -print | /usr/bin/tail -1`"
+        postgres_pid="`/usr/bin/find / -name postmaster.pid -print | /usr/bin/tail -1`"
+        postgres_sql_config="`/usr/bin/find / -name postgresql.conf -print | /bin/grep etc | /usr/bin/tail -1`"
 
-	/bin/sed -i '/127.0.0.1/d' ${postgres_config}
-	/bin/echo "host       template1              postgres            127.0.0.1/32         trust" >> ${postgres_config}
+        /bin/sed -i '/127.0.0.1/d' ${postgres_config}
+        /bin/echo "host       template1              postgres            127.0.0.1/32         trust" >> ${postgres_config}
 
-	if ( [ ! -d ${HOME}/runtime/postgres-init ] )
-	then
-		/bin/mkdir -p ${HOME}/runtime/postgres-init
-	fi
+        if ( [ ! -d ${HOME}/runtime/postgres-init ] )
+        then
+                /bin/mkdir -p ${HOME}/runtime/postgres-init
+        fi
 
-	/bin/cp ${HOME}/services/database/selfmanaged/postgres/live/postgres.psql ${HOME}/runtime/postgres-init/initialiseDB.psql
-	/bin/sed -i "s/XXXXDB_NXXXX/${DB_N}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
-	/bin/sed -i "s/XXXXDB_UXXXX/${DB_U}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
-	/bin/sed -i "s/XXXXDB_PXXXX/${DB_P}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
-	/bin/sed -i "s/XXXXIP_MASKXXXX/${IP_MASK}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /bin/cp ${HOME}/services/database/selfmanaged/postgres/live/postgres.psql ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /bin/sed -i "s/XXXXDB_NXXXX/${DB_N}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /bin/sed -i "s/XXXXDB_UXXXX/${DB_U}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /bin/sed -i "s/XXXXDB_PXXXX/${DB_P}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /bin/sed -i "s/XXXXIP_MASKXXXX/${IP_MASK}/g" ${HOME}/runtime/postgres-init/initialiseDB.psql
 
-	/bin/rm ${postgres_pid}
-	/bin/sed -i "/listen_addresses/c\        listen_addresses = '*'" ${postgres_sql_config}
-	/bin/sed -i "/^port/c\        port = ${DB_PORT}" ${postgres_sql_config}
-	/bin/sed -i "/^#port/c\        port = ${DB_PORT}" ${postgres_sql_config}
+        /bin/rm ${postgres_pid}
+        /bin/sed -i "/listen_addresses/c\        listen_addresses = '*'" ${postgres_sql_config}
+        /bin/sed -i "/^port/c\        port = ${DB_PORT}" ${postgres_sql_config}
+        /bin/sed -i "/^#port/c\        port = ${DB_PORT}" ${postgres_sql_config}
 
-	${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
+        ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
-	/usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+        /usr/bin/sudo -u postgres /usr/bin/psql -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
 
-	if ( [ "$?" != "0" ] )
-	then
-		/usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
-	fi
+        if ( [ "$?" != "0" ] )
+        then
+                /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} template1 < ${HOME}/runtime/postgres-init/initialiseDB.psql
+        fi
 
-	if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
-	then
-		DB_N_original="`/bin/grep -o "ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq`"
-	else
-		DB_N_original="${DB_N}"
-	fi
+        if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
+        then
+                DB_N_original="`/bin/grep -o " .*ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq` "
+        else
+                DB_N_original="${DB_N}"
+        fi
 
-	if ( [ "${DB_N_original}" = "${DB_N}" ] )
-	then
-		/bin/sed -i '/128/d' ${postgres_config}
-		/bin/sed -i '/template1/d' ${postgres_config}
-		/bin/sed -i "/${DB_N}/d" ${postgres_config}
-		/bin/echo "host       template1            ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
-		/bin/echo "host       template1            ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
-		/bin/echo "host       ${DB_N}              ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
-		/bin/echo "host       ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
-	else
-		/bin/sed -i "s/${DB_N_original}/${DB_N}/g" ${postgres_config}
-	fi
-	
-	${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
+        if ( [ "${DB_N_original}" = "${DB_N}" ] )
+        then
+                /bin/sed -i '/128/d' ${postgres_config}
+                /bin/sed -i '/template1/d' ${postgres_config}
+                /bin/sed -i "/${DB_N}/d" ${postgres_config}
+                /bin/echo "host       template1            ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
+                /bin/echo "host       template1            ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+                /bin/echo "host       ${DB_N}              ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
+                /bin/echo "host       ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+        else
+                /bin/sed -i "s/${DB_N_original}/${DB_N} /g" ${postgres_config}
+        fi
+
+        ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
 fi

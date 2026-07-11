@@ -59,7 +59,7 @@ then
         postgres_pid="`/usr/bin/find / -name postmaster.pid -print | /usr/bin/tail -1`"
         postgres_sql_config="`/usr/bin/find / -name postgresql.conf -print | /bin/grep etc | /usr/bin/tail -1`"
 
-        if ( [ "`/bin/echo ${DB_N} | /bin/grep 'ARCHIVE'`" = "" ] )
+        if ( [ "`/bin/echo ${DB_N} | /bin/grep 'archive'`" = "" ] )
         then
                 /bin/sed -i '/127.0.0.1/d' ${postgres_config}
                 /bin/echo "host       template1              postgres            127.0.0.1/32         trust" >> ${postgres_config}

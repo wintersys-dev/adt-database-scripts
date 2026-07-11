@@ -52,7 +52,7 @@ fi
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
-		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
+		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 

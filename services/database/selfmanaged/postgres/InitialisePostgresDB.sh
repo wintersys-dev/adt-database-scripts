@@ -42,7 +42,7 @@ fi
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
-        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_ARCHIVE.*//g'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 
@@ -70,11 +70,11 @@ then
                 /bin/mkdir -p ${HOME}/runtime/postgres-init
         fi
 
-        if ( [ "`/bin/echo ${DB_N} | /bin/grep '_ARCHIVE' ${postgres_config}`" != "" ] )
+        if ( [ "`/bin/echo ${DB_N} | /bin/grep '_archive' ${postgres_config}`" != "" ] )
         then
-                DB_N_original="`/bin/grep -o " .*ARCHIVE.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq` "
+                DB_N_original="`/bin/grep -o " .*archive.* " ${postgres_config} | /usr/bin/awk '{print $1}' | /usr/bin/sort -u | /usr/bin/uniq` "
         else
-                DB_N_original="`/bin/echo ${DB_N} | /bin/sed 's/_ARCHIVE.*//g'`"
+                DB_N_original="`/bin/echo ${DB_N} | /bin/sed 's/_archive.*//g'`"
         fi
 
         DB_N="`/bin/echo ${DB_N} | /usr/bin/tr '[:upper:]' '[:lower:]'`"

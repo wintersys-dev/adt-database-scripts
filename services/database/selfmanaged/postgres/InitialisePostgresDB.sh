@@ -102,8 +102,7 @@ then
 
         if ( [ "$?" != "0" ] )
         then
-              #  PGPASSWORD="${DB_P}" /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} ${DB_N} < ${HOME}/runtime/postgres-init/initialiseDB.psql
-                ${HOME}/utilities/remote/ConnectToPostgresDB.sh < ${HOME}/runtime/postgres-init/initialiseDB.psql
+                PGPASSWORD="${DB_P}" /usr/bin/psql -U ${DB_U} -h 127.0.0.1 -p ${DB_PORT} ${DB_N} < ${HOME}/runtime/postgres-init/initialiseDB.psql
         fi
 
         if ( [ "${DB_N_original}" = "${DB_N}" ] )

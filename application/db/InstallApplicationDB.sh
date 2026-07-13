@@ -32,7 +32,8 @@ archive_id="${1}"
 
 if ( [ "${archive_id}" != "" ] )
 then
-        archive_id=".${archive_id}"
+        archive_id="`/bin/echo ${archive_id} | /bin/sed 's/archive/ARCHIVE/g'`"
+        archive_id="`/bin/echo .${archive_id} | /bin/sed -e 's/_/-/g' -e 's/ARCHIVE-/ARCHIVE\./g'`"
 fi
 
 if ( [ "${HOME}" = "" ] )

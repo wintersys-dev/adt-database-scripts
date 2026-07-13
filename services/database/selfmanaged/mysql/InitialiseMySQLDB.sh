@@ -79,7 +79,8 @@ fi
 
 if ( [ "$?" != "0" ] )
 then
-	/usr/bin/mysql -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+	#/usr/bin/mysql -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+	${HOME}/utilities/remote/ConnectToMySQLDB.sh < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
 /bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.config /etc/mysql/my.cnf

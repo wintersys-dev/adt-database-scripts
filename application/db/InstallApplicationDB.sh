@@ -104,7 +104,7 @@ then
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
         #${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"
-        ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz.${archive_id}" "." "${BUILD_ARCHIVE_CHOICE}"
+        ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz${archive_id}" "." "${BUILD_ARCHIVE_CHOICE}"
 
         if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}-DB-backup.tar.gz${archive_id} ] )
         then

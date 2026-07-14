@@ -21,6 +21,8 @@
 ##################################################################################
 #set -x
 
+HOME="`/bin/cat /home/homedir.dat`"
+
 if ( [ "$1" = "" ] )
 then
         /bin/echo "This script requires the <Build periodicity> parameter to be set"

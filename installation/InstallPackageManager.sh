@@ -77,4 +77,17 @@ then
 	fi
 fi
 
+if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "aptitude" ] )
+then
+	if ( [ "${BUILDOS}" = "ubuntu" ] )
+	then
+		${HOME}/installation/InstallAptitude.sh ${buildos}
+	fi
+
+	if ( [ "${BUILDOS}" = "debian" ] )
+	then
+		${HOME}/installation/InstallAptitude.sh ${buildos}
+	fi
+fi
+
 

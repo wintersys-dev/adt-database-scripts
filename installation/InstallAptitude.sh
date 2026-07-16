@@ -49,11 +49,13 @@ do
 	then
 		if ( [ "${BUILDOS}" = "ubuntu" ] )
 		then
+			eval ${install_command} psmisc
 			eval ${install_command} aptitude
 		fi
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
+			eval ${install_command} psmisc
 			eval ${install_command} aptitude
 		fi
 	fi

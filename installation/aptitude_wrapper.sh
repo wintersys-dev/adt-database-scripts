@@ -1,9 +1,6 @@
 #!/bin/sh
 
-if ( [ ! -f  /var/lib/aptitude/pkgstates ] )
-then
-        /bin/touch  /var/lib/aptitude/pkgstates
-fi
+/bin/touch  /var/lib/aptitude/pkgstates
 
 while ( [ "`/usr/bin/fuser /var/lib/dpkg/lock-frontend`" != "" ] )
 do

@@ -50,12 +50,14 @@ do
 	then
 		if ( [ "${BUILDOS}" = "ubuntu" ] )
 		then
+			eval ${install_command} psmisc
 			eval ${install_command} nala
 			${select_mirrors}
 		fi
 
 		if ( [ "${BUILDOS}" = "debian" ] )
 		then
+			eval ${install_command} psmisc
 			eval ${install_command} nala
 			${select_mirrors}
 		fi

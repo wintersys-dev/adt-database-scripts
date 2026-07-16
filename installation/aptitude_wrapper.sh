@@ -8,4 +8,6 @@ do
         sleep 5
 done
 
-/usr/bin/aptitude "$@"
+/usr/bin/dpkg --configure -a
+command="/usr/bin/aptitude $@"
+eval "${command}"

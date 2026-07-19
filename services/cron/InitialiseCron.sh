@@ -52,6 +52,7 @@ HOME="`/bin/cat /home/homedir.dat`"
 /bin/echo "30 4 1 * * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'MONTHLY'" >>/var/spool/cron/crontabs/root
 /bin/echo "30 5 1 Jan,Mar,May,Jul,Sep,Nov * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'BIMONTHLY'" >>/var/spool/cron/crontabs/root
 /bin/echo "22 4 * * *  export HOME="${HOME}" && ${HOME}/utilities/software/UpdateSoftware.sh" >> /var/spool/cron/crontabs/root
+/bin/echo "44 4 * * *  export HOME="${HOME}" && ${HOME}/installation/UpdateAndUpgrade.sh" >> /var/spool/cron/crontabs/root
 
 /bin/echo "30 3 * * *  export HOME="${HOME}" && ${HOME}/utilities/housekeeping/RemoveExpiredLogs.sh" >> /var/spool/cron/crontabs/root
 

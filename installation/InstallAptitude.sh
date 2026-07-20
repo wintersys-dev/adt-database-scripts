@@ -43,7 +43,7 @@ export DEBIAN_FRONTEND=noninteractive
 install_command="${manager} ${options} install"
 
 count="0"
-while ( [ ! -f /usr/bin/bzip2 ] && [ "${count}" -lt "5" ] )
+while ( [ ! -f /usr/bin/aptitude ] && [ "${count}" -lt "5" ] )
 do
 	if ( [ "${manager}" != "" ] )
 	then

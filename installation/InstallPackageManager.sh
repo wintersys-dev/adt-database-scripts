@@ -68,12 +68,12 @@ if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | 
 then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
-		${HOME}/installation/InstallNala.sh ${buildos}
+		${HOME}/installation/InstallNala.sh ${BUILDOS}
 	fi
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		${HOME}/installation/InstallNala.sh ${buildos}
+		${HOME}/installation/InstallNala.sh ${BUILDOS}
 	fi
 fi
 
@@ -81,12 +81,12 @@ if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | 
 then
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
-		${HOME}/installation/InstallAptitude.sh ${buildos}
+		${HOME}/installation/InstallAptitude.sh ${BUILDOS}
 	fi
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		${HOME}/installation/InstallAptitude.sh ${buildos}
+		${HOME}/installation/InstallAptitude.sh ${BUILDOS}
 	fi
 fi
 

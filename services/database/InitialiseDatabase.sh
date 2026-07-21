@@ -38,6 +38,26 @@ then
 	${HOME}/services/database/selfmanaged/postgres/InitialisePostgresDB.sh
 fi
 
+if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] )
+then
+	if ( [ "${CLOUDHOST}" = "digitalocean" ] )
+	then
+		${HOME}/services/database/dbaas/digitalocean/maria/InitialiseMySQLDB.sh
+	fi
+	if ( [ "${CLOUDHOST}" = "exoscale" ] )
+	then
+		${HOME}/services/database/dbaas/exoscale/maria/InitialiseMySQLDB.sh
+	fi
+	if ( [ "${CLOUDHOST}" = "linode" ] )
+	then
+		${HOME}/services/database/dbaas/linode/maria/InitialiseMySQLDB.sh
+	fi
+	if ( [ "${CLOUDHOST}" = "vultr" ] )
+	then
+		${HOME}/services/database/dbaas/vultr/maria/InitialiseMySQLDB.sh
+	fi
+fi
+
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ] )
 then
 	if ( [ "${CLOUDHOST}" = "digitalocean" ] )

@@ -42,19 +42,19 @@ if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONT
 then
 	if ( [ "${CLOUDHOST}" = "digitalocean" ] )
 	then
-		${HOME}/services/database/dbaas/digitalocean/maria/InitialiseMySQLDB.sh
+		${HOME}/services/database/dbaas/digitalocean/mysql/InitialiseMySQLDB.sh
 	fi
 	if ( [ "${CLOUDHOST}" = "exoscale" ] )
 	then
-		${HOME}/services/database/dbaas/exoscale/maria/InitialiseMySQLDB.sh
+		${HOME}/services/database/dbaas/exoscale/mysql/InitialiseMySQLDB.sh
 	fi
 	if ( [ "${CLOUDHOST}" = "linode" ] )
 	then
-		${HOME}/services/database/dbaas/linode/maria/InitialiseMySQLDB.sh
+		${HOME}/services/database/dbaas/linode/mysql/InitialiseMySQLDB.sh
 	fi
 	if ( [ "${CLOUDHOST}" = "vultr" ] )
 	then
-		${HOME}/services/database/dbaas/vultr/maria/InitialiseMySQLDB.sh
+		${HOME}/services/database/dbaas/vultr/mysql/InitialiseMySQLDB.sh
 	fi
 fi
 

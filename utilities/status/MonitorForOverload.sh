@@ -30,6 +30,11 @@ then
         exit
 fi
 
+if ( [ "`/usr/bin/find ${HOME}/runtime/DATABASE_READY -type f  -mmin -10`" != "" ] )
+then
+        exit
+fi
+
 if ( [ -f ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED ] )
 then
         if test "`/usr/bin/find ${HOME}/runtime/CPU_OVERLOAD_ACKNOWLEDGED -mmin +1440`"

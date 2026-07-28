@@ -23,6 +23,8 @@
 #################################################################################################
 #set -x
 
+HOME="`/bin/cat /home/homedir.dat`"
+
 /bin/echo ""
 /bin/echo "###########################################################################################"
 /bin/echo "Shutting down a database with `${HOME}/utilities/processing/GetPublicIP.sh`, please wait whilst I clean the place up first"

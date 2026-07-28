@@ -27,11 +27,11 @@ HOME="`/bin/cat /home/homedir.dat`"
 
 /bin/echo ""
 /bin/echo "###########################################################################################"
-/bin/echo "Shutting down a database with `${HOME}/utilities/processing/GetPublicIP.sh`, please wait whilst I clean the place up first"
+/bin/echo "Shutting down a machine with IP ADDRESS: `${HOME}/utilities/processing/GetPublicIP.sh`, please wait whilst I clean the place up first"
 /bin/echo "###########################################################################################"
 /bin/echo ""
 
-${HOME}/application/backupscripts/Backup.sh "shutdown"
+${HOME}/application/backup/Backup.sh "shutdown"
 
 if ( [ "${1}" = "halt" ] )
 then

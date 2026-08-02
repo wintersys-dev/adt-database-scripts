@@ -191,7 +191,7 @@ then
 	then
 		if ( [ "`/usr/sbin/ufw status | /bin/grep "${SSH_PORT}.*ALLOW.*${BUILD_MACHINE_IP}"`" = "" ] )
 		then
-			/usr/sbin/ufw allow from ${BUILD_MACHINE_IP} to any port ${SSH_PORT}
+			/usr/sbin/ufw allow from ${BUILD_MACHINE_IP}/32 to any port ${SSH_PORT}
 			/bin/sleep 2
 			updated="1"
 		fi
@@ -199,9 +199,9 @@ then
 	then
 		if ( [ "`/usr/sbin/iptables --list-rules | /bin/grep  "${BUILD_MACHINE_IP}.*${SSH_PORT}.*ACCEPT"`" = "" ] )
 		then
-			/usr/sbin/iptables -A INPUT -s ${BUILD_MACHINE_IP} -p tcp --dport ${SSH_PORT} -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-			/usr/sbin/iptables -A OUTPUT -s ${BUILD_MACHINE_IP} -p tcp --sport ${SSH_PORT} -m conntrack --ctstate ESTABLISHED -j ACCEPT
-			/usr/sbin/iptables -A INPUT -s ${BUILD_MACHINE_IP} -p ICMP --icmp-type 8 -j ACCEPT
+			/usr/sbin/iptables -A INPUT -s ${BUILD_MACHINE_IP}/32 -p tcp --dport ${SSH_PORT} -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+			/usr/sbin/iptables -A OUTPUT -s ${BUILD_MACHINE_IP}/32 -p tcp --sport ${SSH_PORT} -m conntrack --ctstate ESTABLISHED -j ACCEPT
+			/usr/sbin/iptables -A INPUT -s ${BUILD_MACHINE_IP}/32 -p ICMP --icmp-type 8 -j ACCEPT
 			updated="1"
 		fi
 	fi

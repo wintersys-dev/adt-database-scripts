@@ -57,6 +57,8 @@ fi
 /bin/chown ${SERVER_USER}:root /usr/bin/run
 /bin/chmod 750 /usr/bin/run
 
+#First value wins: “The addition of Include /etc/ssh/sshd_config.d/*.conf at the top of the /etc/ssh/sshd_config combined with 'first value wins'”, as noted by ServerFault. Because the included drop-in files are read first, any setting you declare inside sshd_config.d/*.conf takes precedence over the identical setting later down in the main sshd_config file.
+
 /bin/echo "PasswordAuthentication no
 PermitRootLogin no
 KbdInteractiveAuthentication no
@@ -71,9 +73,6 @@ KerberosAuthentication no
 GSSAPIAuthentication no
 UsePAM no
 X11Forwarding no" > /etc/ssh/sshd_config.d/99-hardening.conf
-
-/bin/sed -e 's/PasswordAuthentication/#PasswordAuthentication/g' -e 's/PermitRootLogin/#PermitRootLogin/g' -e 's/KbdInteractiveAuthentication/#KbdInteractiveAuthentication/g' -e 's/AddressFamily/#AddressFamily/g' -e 's/LoginGraceTime/#LoginGraceTime/g' -e 's/StrictModes/#StrictModes/g' -e 's/MaxAuthTries/#MaxAuthTriess/g' -e 's/MaxSessions/#MaxSessions/g' -e 's/PubkeyAuthentication/#PubkeyAuthentication/g' -e 's/PermitEmptyPasswords/#PermitEmptyPasswords/g' -e 's/KerberosAuthentication/#KerberosAuthentication/g' -e 's/GSSAPIAuthentication/#GSSAPIAuthentication/g' -e 's/UsePAM/#UsePAM/g' -e 's/X11Forwarding /#X11Forwarding /g' /etc/ssh/sshd_config
-
 
 ${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
 

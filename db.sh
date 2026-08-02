@@ -72,6 +72,9 @@ GSSAPIAuthentication no
 UsePAM no
 X11Forwarding no" > /etc/ssh/sshd_config.d/99-hardening.conf
 
+/bin/sed -e 's/PasswordAuthentication/#PasswordAuthentication/g' -e 's/PermitRootLogin/#PermitRootLogin/g' -e 's/KbdInteractiveAuthentication/#KbdInteractiveAuthentication/g' -e 's/AddressFamily/#AddressFamily/g' -e 's/LoginGraceTime/#LoginGraceTime/g' -e 's/StrictModes/#StrictModes/g' -e 's/MaxAuthTries/#MaxAuthTriess/g' -e 's/MaxSessions/#MaxSessions/g' -e 's/PubkeyAuthentication/#PubkeyAuthentication/g' -e 's/PermitEmptyPasswords/#PermitEmptyPasswords/g' -e 's/KerberosAuthentication/#KerberosAuthentication/g' -e 's/GSSAPIAuthentication/#GSSAPIAuthentication/g' -e 's/UsePAM/#UsePAM/g' -e 's/X11Forwarding /#X11Forwarding /g' /etc/ssh/sshd_config
+
+
 ${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
 
 /bin/sed -i "s/managed=false/managed=true/" /etc/NetworkManager/NetworkManager.conf

@@ -64,6 +64,10 @@ then
 	/bin/mkdir -p ${HOME}/logs/firewall
 fi
 
+allow_vpc="sshd : `echo "${VPC_IP_RANGE}" | /usr/bin/awk -F'.' '{print $1,$2,$3.}' | /bin/sed 's/ /./g'`."
+/bin/echo "${allow_vpc}" >> /etc/hosts.allow
+/bin/echo "sshd : ${BUILD_MACHINE_IP}" >> /etc/hosts.allow
+
 #This stream redirection is required for correct function, please do not remove
 #exec >${HOME}/logs/firewall/FIREWALL_CONFIGURATION.log
 #exec 2>&1

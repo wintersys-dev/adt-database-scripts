@@ -72,7 +72,7 @@ PermitEmptyPasswords no
 KerberosAuthentication no
 GSSAPIAuthentication no
 UsePAM no
-X11Forwarding no" > /etc/ssh/sshd_config.d/99-hardening.conf
+X11Forwarding no" >> /etc/ssh/sshd_config.d/99-hardening.conf
 
 ${HOME}/utilities/processing/RunServiceCommand.sh "ssh" restart
 

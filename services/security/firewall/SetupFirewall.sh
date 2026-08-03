@@ -68,6 +68,8 @@ allow_vpc="sshd : `/bin/echo "${VPC_IP_RANGE}" | /usr/bin/awk -F'.' '{print $1,$
 /bin/echo "${allow_vpc}" >> /etc/hosts.allow
 /bin/echo "sshd : ${BUILD_MACHINE_IP}" >> /etc/hosts.allow
 
+/bin/echo "ALL : ALL" >> /etc/hosts.deny
+
 #This stream redirection is required for correct function, please do not remove
 #exec >${HOME}/logs/firewall/FIREWALL_CONFIGURATION.log
 #exec 2>&1

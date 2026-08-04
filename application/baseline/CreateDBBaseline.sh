@@ -134,7 +134,8 @@ DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
 cd ${HOME}/backups
 
-. ${HOME}/services/database/PlainDumpDatabase.sh
+#. ${HOME}/services/database/PlainDumpDatabase.sh
+${HOME}/services/database/BackupDatabase.sh
 
 ${HOME}/application/branding/RemoveApplicationBranding.sh
 

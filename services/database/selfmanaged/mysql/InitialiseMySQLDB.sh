@@ -28,9 +28,9 @@ HOST=""
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
 fi
 
 IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
@@ -40,25 +40,25 @@ BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 
 if ( [ -f /tmp/original_credentials.dat ] )
 then
-	DB_U="`/bin/grep DATABASE_USERNAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	DB_P="`/bin/grep DATABASE_PASSWORD /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	DB_N="`/bin/grep DATABASE_NAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-	/bin/rm /tmp/original_credentials.dat
+        DB_U="`/bin/grep DATABASE_USERNAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        DB_P="`/bin/grep DATABASE_PASSWORD /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        DB_N="`/bin/grep DATABASE_NAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
+        /bin/rm /tmp/original_credentials.dat
 else
-	DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
-	DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-	DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
+        DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
+        DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 fi
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
-		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 
 if ( [ ! -d ${HOME}/runtime/mysql-init ] )
 then
-	/bin/mkdir -p ${HOME}/runtime/mysql-init
+        /bin/mkdir -p ${HOME}/runtime/mysql-init
 fi
 
 /bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.sql ${HOME}/runtime/mysql-init/initialiseDB.sql
@@ -69,17 +69,21 @@ fi
 
 ${HOME}/utilities/processing/RunServiceCommand.sh mysql start
 
+credentials_file=${HOME}/.mysql-credentials.cnf
+/bin/echo "[client]" > ${credentials_file}
+/bin/echo "password=${DB_P}" >> ${credentials_file}
+
 #try with no password set
 /usr/bin/mysql -A < ${HOME}/runtime/mysql-init/initialiseDB.sql
 #make sure by trying with password
 if ( [ "$?" != "0" ] )
 then
-	/usr/bin/mysql -A --force -u root -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+        /usr/bin/mysql  --defaults-extra-file=${credentials_file} -A --force -u root < ${HOME}/runtime/mysql-init/initialiseDB.sql
 fi
 
 if ( [ "$?" != "0" ] )
 then
-	/usr/bin/mysql -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+        /usr/bin/mysql  --defaults-extra-file=${credentials_file} -A --force -u ${DB_U} < ${HOME}/runtime/mysql-init/initialiseDB.sql
 fi
 
 /bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.config /etc/mysql/my.cnf

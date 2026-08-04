@@ -23,20 +23,11 @@
 
 websiteDB="${1}"
 
-if ( [ -f /usr/bin/mariadb-dump ] )
-then
-	mysql_dump="/usr/bin/mariadb-dump --ssl"
-	mysql="/usr/bin/mariadb"
-else
-	mysql_dump="/usr/bin/mysqldump --set-gtid-purged=OFF --ssl-mode=REQUIRED --skip-column-statistics"
-	mysql="/usr/bin/mysql"
-fi
-
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/processing/GetIP.sh`"
+        HOST="`${HOME}/utilities/processing/GetIP.sh`"
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
@@ -51,69 +42,99 @@ DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 #The standard troop of SQL databases
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ]  )
 then
-	#Dump the database to an sql file
-	if ( [ "`${mysql} -A -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e 'show tables' | /usr/bin/wc -l`" -lt "5" ] )
-	then
-		/bin/echo "${0} `/bin/date`: Failed to backup database, it seems like the tables are not there" 
-		exit
-	fi
+        credentials_file=${HOME}/.mysql-credentials.cnf
+        /bin/echo "[client]" > ${credentials_file}
+        /bin/echo "user=${DB_U}" >> ${credentials_file}
+        /bin/echo "password=${DB_P}" >> ${credentials_file}
+        /bin/echo "port=${DB_PORT}" >> ${credentials_file}
+        /bin/echo "host=${HOST}" >> ${credentials_file}
 
-	/bin/echo "SET SESSION sql_require_primary_key = 0;" > applicationDB.sql
-	/bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
+        if ( [ -f /usr/bin/mariadb-dump ] )
+        then
+                mysql_dump="/usr/bin/mariadb-dump --defaults-extra-file=${credentials_file} --ssl"
+        else
+                mysql_dump="/usr/bin/mysqldump --defaults-extra-file=${credentials_file} --set-gtid-purged=OFF --ssl-mode=REQUIRED --skip-column-statistics"
+        fi
 
-	tries="1"
-	${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y --port=${DB_PORT} --host=${HOST} -u ${DB_U} -p${DB_P} ${DB_N} | /bin/sed -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' >> applicationDB.sql
+        if ( [ -f /usr/bin/mariadb ] )
+        then
+                mysql="/usr/bin/mariadb --defaults-extra-file=${credentials_file}"
+        else
+                mysql="/usr/bin/mysql --defaults-extra-file=${credentials_file}"
+        fi
 
-	while ( [ "$?" != "0"  ] && [ "${tries}" -lt "5" ] )
-	do
-		/bin/sleep 10
-		tries="`/usr/bin/expr ${tries} + 1`"
-		${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y --port=${DB_PORT} --host=${HOST} -u ${DB_U} -p${DB_P} ${DB_N} | /bin/sed -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' >> applicationDB.sql
-	done
 
-	if ( [ "${tries}" = "5" ] )
-	then
-		/bin/echo "${0} `/bin/date`: Had trouble makng a backup of your database. Please investigate..." 
-		${HOME}/services/email/SendEmail.sh "FAILED TO TAKE BACKUP" "I haven't been able to take a database backup, please investigate" "ERROR"
-		exit
-	fi
+        if ( [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "5" ] )
+        then
+                /bin/echo "${0} `/bin/date`: Failed to backup database, it seems like the tables are not there" 
+                exit
+        fi
 
-	/bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
-	/bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;" >> applicationDB.sql
-	/bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
-	/bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
-	/bin/sed -i '/SESSION.SQL_LOG_BIN/d' applicationDB.sql
-	IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-	/bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.sql
-	/bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-	/bin/echo "${0} `/bin/date`: Taring the database dump" 
+        /bin/echo "SET SESSION sql_require_primary_key = 0;" > applicationDB.sql
+        /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
 
-	${HOME}/utilities/processing/StandardiseMySQLCollations.sh ./applicationDB.sql
-	#tar the database dump
-	/bin/tar cvfz ${websiteDB} applicationDB.sql
-	/bin/rm applicationDB.sql
+        tries="1"
+        ${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y  ${DB_N} >> applicationDB.sql 
+        /bin/sed -i -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' ./applicationDB.sql
+
+        while ( [ "`/usr/bin/wc -l ./applicationDB.sql | /usr/bin/awk '{print $1}'`" -lt "10" ] &&  [ "${tries}" -lt "5" ] )
+        do
+                /bin/sleep 10
+                tries="`/usr/bin/expr ${tries} + 1`"
+                ${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y  ${DB_N} >> applicationDB.sql 
+                /bin/sed -i -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' ./applicationDB.sql
+        done
+
+        if ( [ "${tries}" = "5" ] )
+        then
+                /bin/echo "${0} `/bin/date`: Had trouble makng a backup of your database. Please investigate..." 
+                ${HOME}/services/email/SendEmail.sh "FAILED TO TAKE BACKUP" "I haven't been able to take a database backup, please investigate" "ERROR"
+                exit
+        fi
+
+        /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
+        /bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;" >> applicationDB.sql
+        /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
+        /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
+        /bin/sed -i '/SESSION.SQL_LOG_BIN/d' applicationDB.sql
+        IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
+        /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.sql
+        /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
+        /bin/echo "${0} `/bin/date`: Taring the database dump" 
+
+        ${HOME}/utilities/processing/StandardiseMySQLCollations.sh ./applicationDB.sql
+        #tar the database dump
+        /bin/tar cvfz ${websiteDB} applicationDB.sql
+        /bin/rm applicationDB.sql
 fi
 
 #The postgres SQL database
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
-	/bin/echo "DROP TABLE zzzz;" > applicationDB.psql
-	export PGPASSWORD="${DB_P}" && /usr/bin/pg_dump -U ${DB_U} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
 
-	if ( [ "$?" != "0" ] )
-	then
-		/usr/bin/sudo -su postgres /usr/bin/pg_dump -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
-	fi
+        if ( [ -f /usr/bin/pg_dump ] )
+        then
+                pg_dump="/usr/bin/pg_dump "
+        fi
 
-	/bin/echo "DROP TABLE IF EXISTS public.zzzz;" >> applicationDB.psql
-	/bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );" >> applicationDB.psql
-	/bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
-	/bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql
-	IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-	/bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.psql
-	/bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-	/bin/echo "${0} `/bin/date`: Taring the database dump"
-	/bin/tar cvfz ${websiteDB} applicationDB.psql
-	/bin/rm applicationDB.psql
+
+        /bin/echo "DROP TABLE zzzz;" > applicationDB.psql
+        export PGPASSWORD="${DB_P}" && ${pg_dump} -U ${DB_U} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
+
+        if ( [ "$?" != "0" ] )
+        then
+                /usr/bin/sudo -su postgres ${pg_dump} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
+        fi
+
+        /bin/echo "DROP TABLE IF EXISTS public.zzzz;" >> applicationDB.psql
+        /bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );" >> applicationDB.psql
+        /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
+        /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql
+        IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
+        /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.psql
+        /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
+        /bin/echo "${0} `/bin/date`: Taring the database dump"
+        /bin/tar cvfz ${websiteDB} applicationDB.psql
+        /bin/rm applicationDB.psql
 fi

@@ -29,9 +29,9 @@ HOST=""
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
 fi
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
@@ -44,47 +44,57 @@ ${HOME}/application/db/mysql/CustomiseMySQLByApplication.sh
 
 if ( [ -f ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql ] )
 then
-	currentengine="`/bin/grep ENGINE= ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql | /usr/bin/awk -F' ' '{print $2}' | /usr/bin/head -1`"
-	# We are a mysql cluster so we need to use NDB engine type the way to do this is to modify the dump file
-	/bin/sed -i "s/${currentengine}/ENGINE=INNODB /g" ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+        currentengine="`/bin/grep ENGINE= ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql | /usr/bin/awk -F' ' '{print $2}' | /usr/bin/head -1`"
+        # We are a mysql cluster so we need to use NDB engine type the way to do this is to modify the dump file
+        /bin/sed -i "s/${currentengine}/ENGINE=INNODB /g" ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
 
-	#Make any mods that we want first of all for self-managed and then for managed
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] )
-	then
-		/bin/sed -i 's/.*enable the sandbox mode.*//g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/SESSION.SQL_LOG_BIN/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/sql_require_primary_key/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i 's/utf8mb4_0900_ai_ci/utf8mb4_unicode_ci/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/^\[mysqld\]/a character-set-server = utf8mb4' /etc/mysql/my.cnf
-		/bin/sed -i '/^\[mysqld\]/a collation-server = utf8mb4_bin' /etc/mysql/my.cnf
-	elif ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ]  && ( [ "${CLOUDHOST}" = "digitalocean" ] || [ "${CLOUDHOST}" = "exoscale" ] || [ "${CLOUDHOST}" = "linode" ] || [ "${CLOUDHOST}" = "vultr" ] ) )
-	then       
-		/bin/sed -i 's/.*sql_require_primary_key.*/SET sql_require_primary_key=0;/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/SESSION.SQL_LOG_BIN/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
-		then
-			if ( [ "`/bin/grep GTID ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql`" != "" ] )
-			then
-				/bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-				/bin/sed -i 's/utf8mb4_0900_ai_ci/utf8mb4_unicode_ci/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-			fi
-		fi
-	fi
+        #Make any mods that we want first of all for self-managed and then for managed
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] )
+        then
+                /bin/sed -i 's/.*enable the sandbox mode.*//g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/SESSION.SQL_LOG_BIN/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/sql_require_primary_key/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i 's/utf8mb4_0900_ai_ci/utf8mb4_unicode_ci/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/^\[mysqld\]/a character-set-server = utf8mb4' /etc/mysql/my.cnf
+                /bin/sed -i '/^\[mysqld\]/a collation-server = utf8mb4_bin' /etc/mysql/my.cnf
+        elif ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ]  && ( [ "${CLOUDHOST}" = "digitalocean" ] || [ "${CLOUDHOST}" = "exoscale" ] || [ "${CLOUDHOST}" = "linode" ] || [ "${CLOUDHOST}" = "vultr" ] ) )
+        then       
+                /bin/sed -i 's/.*sql_require_primary_key.*/SET sql_require_primary_key=0;/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/SESSION.SQL_LOG_BIN/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
+                then
+                        if ( [ "`/bin/grep GTID ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql`" != "" ] )
+                        then
+                                /bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                                /bin/sed -i 's/utf8mb4_0900_ai_ci/utf8mb4_unicode_ci/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                        fi
+                fi
+        fi
 
-	#Actually load the database dump file into our MYSQL database server
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
-	then
-		/usr/bin/mysql -A -u ${DB_U} -p${DB_P} --host="${HOST}" --port=${DB_PORT} -e "CREATE DATABASE ${DB_N};"
-		/bin/sed -i 's/.*sql_require_primary_key.*/SET sql_require_primary_key=0;/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-		/bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-	fi
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
+        then
+                credentials_file=${HOME}/.mysql-credentials.cnf
+                /bin/echo "[client]" > ${credentials_file}
+                /bin/echo "user=${DB_U}" >> ${credentials_file}
+                /bin/echo "password=${DB_P}" >> ${credentials_file}
+                /bin/echo "port=${DB_PORT}" >> ${credentials_file}
+                /bin/echo "host=${HOST}" >> ${credentials_file}
 
-	${HOME}/utilities/remote/ConnectToMySQLDB.sh < ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                if ( [ -f /usr/bin/mysql ] )
+                then
+                        mysql="/usr/bin/mysql --defaults-extra-file=${credentials_file} "
+                fi
 
+                ${mysql} -A -e "CREATE DATABASE ${DB_N};"
+                /bin/sed -i 's/.*sql_require_primary_key.*/SET sql_require_primary_key=0;/g' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+                /bin/sed -i '/GTID_PURGED/d' ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+        fi
+        
+		${HOME}/utilities/remote/ConnectToMySQLDB.sh < ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
-	exit
+        exit
 fi
 
 #Make sure that all our tables are INNODB
@@ -93,10 +103,10 @@ ${HOME}/application/db/mysql/EnforceEngineType.sh
 #We can gain confidence that the installtion went OK by checking for our special marker table
 if ( [ "`${HOME}/utilities/remote/ConnectToMySQLDB.sh 'show tables' "yes" "no" | /bin/grep 'zzzz'`" != "" ] )
 then
-	/bin/echo "${0} `/bin/date` : An application has been installed in the database" 
-	${HOME}/services/email/SendEmail.sh "A new application has been installed in your database" "A new application has been installed in your database" "INFO"
-	/bin/touch ${HOME}/runtime/DB_APPLICATION_INSTALLED
+        /bin/echo "${0} `/bin/date` : An application has been installed in the database" 
+        ${HOME}/services/email/SendEmail.sh "A new application has been installed in your database" "A new application has been installed in your database" "INFO"
+        /bin/touch ${HOME}/runtime/DB_APPLICATION_INSTALLED
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
-	/bin/echo "${0} `/bin/date` : FAILED TO INSTALL DATABASE - Exiting build sequence" 
+        /bin/echo "${0} `/bin/date` : FAILED TO INSTALL DATABASE - Exiting build sequence" 
 fi

@@ -95,7 +95,7 @@ then
         /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
         /bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;" >> applicationDB.sql
 
-        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        if ( [ "${websiteDB}" != "" ] )
         then
                 /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
                 /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
@@ -108,7 +108,7 @@ then
 
         ${HOME}/utilities/processing/StandardiseMySQLCollations.sh ./applicationDB.sql
 
-        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        if ( [ "${websiteDB}" != "" ] )
         then
                 /bin/tar cvfz ${websiteDB} applicationDB.sql
                 /bin/rm applicationDB.sql
@@ -136,7 +136,7 @@ then
         /bin/echo "DROP TABLE IF EXISTS public.zzzz;" >> applicationDB.psql
         /bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );" >> applicationDB.psql
 
-        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        if ( [ "${websiteDB}" != "" ] )
         then
                 /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
                 /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql

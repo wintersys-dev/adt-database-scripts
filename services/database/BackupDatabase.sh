@@ -94,18 +94,25 @@ then
 
         /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
         /bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;" >> applicationDB.sql
-        /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
-        /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
-        /bin/sed -i '/SESSION.SQL_LOG_BIN/d' applicationDB.sql
-        IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-        /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.sql
-        /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-        /bin/echo "${0} `/bin/date`: Taring the database dump" 
+
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        then
+                /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
+                /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
+                /bin/sed -i '/SESSION.SQL_LOG_BIN/d' applicationDB.sql
+                IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
+                /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.sql
+                /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
+                /bin/echo "${0} `/bin/date`: Taring the database dump" 
+        fi
 
         ${HOME}/utilities/processing/StandardiseMySQLCollations.sh ./applicationDB.sql
-        #tar the database dump
-        /bin/tar cvfz ${websiteDB} applicationDB.sql
-        /bin/rm applicationDB.sql
+
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        then
+                /bin/tar cvfz ${websiteDB} applicationDB.sql
+                /bin/rm applicationDB.sql
+        fi
 fi
 
 #The postgres SQL database
@@ -118,7 +125,6 @@ then
                 pg_dump="/usr/bin/pg_dump "
         fi
 
-
         /bin/echo "DROP TABLE zzzz;" > applicationDB.psql
         export PGPASSWORD="${DB_P}" && ${pg_dump} -U ${DB_U} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
 
@@ -129,12 +135,16 @@ then
 
         /bin/echo "DROP TABLE IF EXISTS public.zzzz;" >> applicationDB.psql
         /bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );" >> applicationDB.psql
-        /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
-        /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql
-        IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-        /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.psql
-        /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-        /bin/echo "${0} `/bin/date`: Taring the database dump"
-        /bin/tar cvfz ${websiteDB} applicationDB.psql
-        /bin/rm applicationDB.psql
+
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:baseline`" = "0" ] && [ "`${HOME}/utilities/config/CheckConfigValue.sh BUILDARCHIVECHOICE:virgin`" = "0" ] )
+        then
+                /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
+                /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql
+                IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
+                /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.psql
+                /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
+                /bin/echo "${0} `/bin/date`: Taring the database dump"
+                /bin/tar cvfz ${websiteDB} applicationDB.psql
+                /bin/rm applicationDB.psql
+        fi
 fi

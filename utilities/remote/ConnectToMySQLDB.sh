@@ -21,7 +21,7 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################################
 #######################################################################################
-#set -x
+set -x
 
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
@@ -40,6 +40,7 @@ then
         raw="`/bin/echo $@ | /usr/bin/awk '{print $(NF-1)}'`"  
         override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
 fi
+
 
 DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
@@ -79,19 +80,28 @@ fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 
+
+credentials_file=${HOME}/.mysql-credentials.cnf
+/bin/echo "[client]" > ${credentials_file}
+/bin/echo "user=${DB_U}" >> ${credentials_file}
+/bin/echo "password=${DB_P}" >> ${credentials_file}
+/bin/echo "port=${DB_PORT}" >> ${credentials_file}
+/bin/echo "host=${HOST}" >> ${credentials_file}
+
 if ( [ "${raw}" != "yes" ] )
 then
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e "${sql_command}"
+
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -e "${sql_command}"
         else
-                ${mysql} -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N}
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host=${HOST} --port=${DB_PORT} -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -N -r -s -e "${sql_command}" 
         else
-                ${mysql} -N -r -s -u ${DB_U} -p${DB_P} ${DB_N} --host="${HOST}" --port="${DB_PORT}"
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -N -r -s
         fi
 fi

@@ -28,9 +28,9 @@ HOST=""
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
 fi
 
 IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
@@ -45,13 +45,13 @@ DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
 if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
 then
-		DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
+        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
         DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
 fi
 
 if ( [ ! -d ${HOME}/runtime/mariadb-init ] )
 then
-	/bin/mkdir -p ${HOME}/runtime/mariadb-init
+        /bin/mkdir -p ${HOME}/runtime/mariadb-init
 fi
 
 /bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.sql ${HOME}/runtime/mariadb-init/initialiseDB.sql
@@ -62,17 +62,21 @@ fi
 
 ${HOME}/utilities/processing/RunServiceCommand.sh mariadb start
 
+credentials_file=${HOME}/.mysql-credentials.cnf
+/bin/echo "[client]" > ${credentials_file}
+/bin/echo "password=${DB_P}" >> ${credentials_file}
+
 #try with no password set
 /usr/bin/mariadb -A < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 #make sure by trying with password
 if ( [ "$?" != "0" ] )
 then
-	/usr/bin/mariadb -A --force -u root -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
+        /usr/bin/mariadb --defaults-extra-file=${credentials_file} -A --force -u root < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
 if ( [ "$?" != "0" ] )
 then
-	/usr/bin/mariadb -A --force -u ${DB_U} -p${DB_P} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
+        /usr/bin/mariadb --defaults-extra-file=${credentials_file} -A --force -u ${DB_U} < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 fi
 
 /bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S /bin/cp ${HOME}/services/database/selfmanaged/mariadb/live/mariadb.config /etc/mysql/mariadb.conf.d/50-server.cnf

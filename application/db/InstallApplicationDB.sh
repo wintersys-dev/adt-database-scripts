@@ -163,11 +163,6 @@ fi
 # We reckon all is good if this file exists
 if ( [ ! -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )
 then
-        ${HOME}/services/email/SendEmail.sh "DEFINITE INSTALLATION ERROR" "The application didn't install correctly into the database system" "ERROR"
+        ${HOME}/services/email/SendEmail.sh "DEFINITE INSTALLATION ERROR" "The application database  didn't import correctly into the database system" "ERROR"
 fi
 
-# We reckon all is good if this file exists
-if ( [ ! -f ${HOME}/runtime/DB_APPLICATION_INSTALLED ] )
-then
-	${HOME}/services/email/SendEmail.sh "DEFINITE INSTALLATION ERROR" "The application didn't install correctly into the database system" "ERROR"
-fi

@@ -21,6 +21,20 @@
 #######################################################################################################
 #set -x
 
+if ( [ ! -d ${HOME}/logs/installation ] )
+then
+        /bin/mkdir -p ${HOME}/logs/installationemergency_restoration
+fi
+
+log_file="postgres_out_`/bin/date | /bin/sed 's/ //g'`"
+err_file="postgres_err_`/bin/date | /bin/sed 's/ //g'`"
+
+/bin/echo "Log file is at: ${HOME}/logs/installation/${log_file}"
+/bin/echo "Error file is at: ${HOME}/logs/installation/${err_file}"
+
+exec 1>>${HOME}/logs/installation/${log_file}
+exec 2>>${HOME}/logs/installation/${err_file}
+
 HOME="`/bin/cat /home/homedir.dat`"
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"

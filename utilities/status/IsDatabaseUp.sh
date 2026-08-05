@@ -22,16 +22,16 @@
 
 if ( [ -f /usr/bin/mariadb ] )
 then
-	mysql="/usr/bin/mariadb"
+        mysql="/usr/bin/mariadb"
 else
-	mysql="/usr/bin/mysql"
+        mysql="/usr/bin/mysql"
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/utilities/processing/GetIP.sh`"
+        HOST="`${HOME}/utilities/processing/GetIP.sh`"
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
@@ -42,77 +42,79 @@ DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
 if ( [ "${HOST}" = "" ] || [ "${DB_PORT}" = "" ] || [ "${DB_N}" = "" ] || [ "${DB_P}" = "" ] || [ "${DB_U}" = "" ] )
 then
-	exit
+        exit
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] )
 then
-	${mysql} -A -u ${DB_U} -p${DB_P}  ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e 'exit'
-	if ( [ "$?" = "0" ] )
-	then
-		/bin/echo "ALIVE"
-	else
-		/bin/echo "DEAD"
-		/bin/echo "${0} `/bin/date`: The Mariadb database has been offline, I am atempting to restart it" >> ${HOME}/logs/OPERATIONAL_MONITORING.log
-		${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe Mariadb database has been offline" "ERROR"
-		${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+        ${HOME}/utilities/remote/ConnectToMySQLDB.sh "show databases;" 2>&1 >/dev/null
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
+        if ( [ "$?" = "0" ] )
+        then
+                /bin/echo "ALIVE"
+        else
+                /bin/echo "DEAD"
+                #               /bin/echo "${0} `/bin/date`: The Mariadb database has been offline, I am atempting to restart it" >> ${HOME}/logs/OPERATIONAL_MONITORING.log
+                ${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe Mariadb database has been offline" "ERROR"
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ] )
 then
-	${mysql} -A -u ${DB_U} -p${DB_P}  ${DB_N} --host="${HOST}" --port="${DB_PORT}" -e 'exit'
-	if ( [ "$?" = "0" ] )
-	then
-		/bin/echo "ALIVE"
-	else
-		/bin/echo "DEAD"
-		/bin/echo "${0} `/bin/date`: The mysql database has been offline, I am atempting to restart it" 
-		${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe mysql database has been offline" "ERROR"
-		${HOME}/utilities/processing/RunServiceCommand.sh mysql restart
+        ${HOME}/utilities/remote/ConnectToMySQLDB.sh "show databases;" 2>&1 >/dev/null
+        if ( [ "$?" = "0" ] )
+        then
+                /bin/echo "ALIVE"
+        else
+                /bin/echo "DEAD"
+                /bin/echo "${0} `/bin/date`: The mysql database has been offline, I am atempting to restart it" 
+				${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe mysql database has been offline" "ERROR"
+                ${HOME}/utilities/processing/RunServiceCommand.sh mysql restart
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the mysql database this is a problem that needs to be looked into"
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your mysql database might not be running" "ERROR"       
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the mysql database this is a problem that needs to be looked into"
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your mysql database might not be running" "ERROR"       
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
 fi
 
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
 then
-	export PGPASSWORD="${DB_P}" && /usr/bin/psql -U ${DB_U} -h ${HOST} -p ${DB_PORT} ${DB_N} -c "\q"
-	if ( [ "$?" = "0" ] )
-	then
-		/bin/echo "ALIVE"
-	else
-		/bin/echo "DEAD"
-		/bin/echo "${0} `/bin/date`: The postgres database has been offline, I am atempting to restart it" 
-		${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe postgres database has been offline" "ERROR"
+		${HOME}/utilities/remote/ConnectToPostgresDB.sh "\list" 2>&1 >/dev/null
+        
+		if ( [ "$?" = "0" ] )
+        then
+                /bin/echo "ALIVE"
+        else
+                /bin/echo "DEAD"
+                /bin/echo "${0} `/bin/date`: The postgres database has been offline, I am atempting to restart it" 
+                ${HOME}/services/email/SendEmail.sh "DATABASE HAS BEEN OFFLINE" "THe postgres database has been offline" "ERROR"
 
-		${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
+                ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the postgres database this is a problem that needs to be looked into" 
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your postgres database might not be running" "ERROR"        
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the postgres database this is a problem that needs to be looked into" 
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your postgres database might not be running" "ERROR"        
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
 fi
 
 

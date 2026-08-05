@@ -23,7 +23,7 @@
 
 if ( [ ! -d ${HOME}/logs/installation ] )
 then
-        /bin/mkdir -p ${HOME}/logs/installationemergency_restoration
+        /bin/mkdir -p ${HOME}/logs/installation
 fi
 
 log_file="postgres_out_`/bin/date | /bin/sed 's/ //g'`"

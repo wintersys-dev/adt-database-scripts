@@ -40,7 +40,7 @@ then
 		fi
 	fi
 
-	if ( [ -d /etc/fail2ban/jail.d ] )
+	if ( [ -d /etc/fail2ban/jail.d ] && ( [ ! -f /etc/fail2ban/jail.d/jail.local ] || [ "`/bin/grep '#ADTFAIL2BAN' /etc/fail2ban/jail.d/jail.local`" = "" ] ) )
 	then
 		/bin/cp ${HOME}/services/security/config/fail2ban.conf /etc/fail2ban/jail.d/jail.local
 		/bin/sed -i "s/XXXXSSHPORTXXXX/${SSH_PORT}/g" /etc/fail2ban/jail.d/jail.local

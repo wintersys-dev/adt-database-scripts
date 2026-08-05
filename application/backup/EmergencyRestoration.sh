@@ -1,6 +1,20 @@
 #!/bin/sh
 #set -x
 
+if ( [ ! -d ${HOME}/logs/emergency_restoration ] )
+then
+        /bin/mkdir -p ${HOME}/logs/emergency_restoration
+fi
+
+log_file="restoration_out_`/bin/date | /bin/sed 's/ //g'`"
+err_file="restoration_err_`/bin/date | /bin/sed 's/ //g'`"
+
+/bin/echo "Log file is at: ${HOME}/logs/emergency_restoration/${log_file}"
+/bin/echo "Error file is at: ${HOME}/logs/emergency_restoration/${err_file}"
+
+exec 1>>${HOME}/logs/emergency_restoration/${log_file}
+exec 2>>${HOME}/logs/emergency_restoration/${err_file}
+
 HOME="`/bin/cat /home/homedir.dat`"
 archive_id="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "ACTIVATE_RESTORATION.ARCHIVE" | /bin/sed 's/ACTIVATE_RESTORATION\.//g'`"
 archive_id="`/bin/echo ${archive_id} | /usr/bin/tr '[:upper:]' '[:lower:]'`"

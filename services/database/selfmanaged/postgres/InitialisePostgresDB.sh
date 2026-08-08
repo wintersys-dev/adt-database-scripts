@@ -90,6 +90,8 @@ then
         /bin/sed -i "/listen_addresses/c\        listen_addresses = '*'" ${postgres_sql_config}
         /bin/sed -i "/^port/c\        port = ${DB_PORT}" ${postgres_sql_config}
         /bin/sed -i "/^#port/c\        port = ${DB_PORT}" ${postgres_sql_config}
+        /bin/sed -i "/^ssl /c\        ssl = on" ${postgres_sql_config}
+        /bin/sed -i "/^#ssl /c\        ssl = on" ${postgres_sql_config}
 
         ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 

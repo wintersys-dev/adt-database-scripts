@@ -41,8 +41,13 @@ then
         override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
 fi
 
+if ( [ "${1}" = "root" ] )
+then
+        DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`_root"
+else
+        DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
+fi
 
-DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
 DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 

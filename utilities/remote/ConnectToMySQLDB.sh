@@ -25,15 +25,16 @@
 
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
+DATABASE_INSTALLATION_TYPE="`${HOME}/utilities/config/ExtractConfigValue.sh 'DATABASEINSTALLATIONTYPE'`"
 SUDO="/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S "
 
-if ( [ -f /usr/bin/mariadb ] )
+
+if ( [ "${DATABASE_INSTALLATION_TYPE}" = "Maria" ] )
 then
         mysql="/usr/bin/mariadb"
-        ssl=" --ssl=TRUE "
-else
+elif ( [ "${DATABASE_INSTALLATION_TYPE}" = "MySQL" ] )
+then
         mysql="/usr/bin/mysql"
-        ssl=" --ssl-mode=REQUIRED "
 fi
 
 if ( [ "$#" != "0" ] )
@@ -98,15 +99,15 @@ then
         if ( [ "${sql_command}" != "" ]  )
         then
 
-                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} -A ${DB_N} -e "${sql_command}"
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N} -e "${sql_command}"
         else
-                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} -A ${DB_N}
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N}
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} ${DB_N} -A -N -r -s -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s -e "${sql_command}" 
         else
-                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} ${DB_N} -A -N -r -s
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s
         fi
 fi

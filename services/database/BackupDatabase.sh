@@ -51,9 +51,9 @@ then
 
         if ( [ -f /usr/bin/mariadb-dump ] )
         then
-                mysql_dump="/usr/bin/mariadb-dump --defaults-extra-file=${credentials_file} --ssl"
+                mysql_dump="/usr/bin/mariadb-dump --defaults-extra-file=${credentials_file} --ssl=TRUE "
         else
-                mysql_dump="/usr/bin/mysqldump --defaults-extra-file=${credentials_file} --set-gtid-purged=OFF --ssl-mode=REQUIRED --skip-column-statistics"
+                mysql_dump="/usr/bin/mysqldump --defaults-extra-file=${credentials_file} --set-gtid-purged=OFF --ssl=TRUE --skip-column-statistics "
         fi
 
         if ( [ -f /usr/bin/mariadb ] )

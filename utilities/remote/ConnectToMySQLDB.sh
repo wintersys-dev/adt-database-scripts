@@ -98,15 +98,15 @@ then
         if ( [ "${sql_command}" != "" ]  )
         then
 
-                ${mysql} --defaults-extra-file=${credentials_file} -A ${DB_N} -e "${sql_command}"
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl -A ${DB_N} -e "${sql_command}"
         else
-                ${mysql} --defaults-extra-file=${credentials_file} -A ${DB_N}
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl -A ${DB_N}
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -A -N -r -s -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl ${DB_N} -A -N -r -s -e "${sql_command}" 
         else
-                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -A -N -r -s
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl ${DB_N} -A -N -r -s
         fi
 fi

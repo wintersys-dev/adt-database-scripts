@@ -105,8 +105,8 @@ then
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl ${DB_N} -A -N -r -s -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl-mode=REQUIRED ${DB_N} -A -N -r -s -e "${sql_command}" 
         else
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl ${DB_N} -A -N -r -s
+                ${mysql} --defaults-extra-file=${credentials_file} --ssl-mode=REQUIRED ${DB_N} -A -N -r -s
         fi
 fi

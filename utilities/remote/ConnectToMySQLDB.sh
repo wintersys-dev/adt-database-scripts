@@ -44,7 +44,10 @@ then
         override_db="`/bin/echo $@ | /usr/bin/awk '{print $NF}'`"  
 fi
 
-if ( [ "${1}" = "root" ] )
+
+#if you want to connect as root, create an empty file ${HOME}/runtime/root and this will trigger a root privieleged session for you. 
+#You will need to recreate this file which you can do with the command /bin/touch ${HOME}/runtime/root
+if ( [ -f ${HOME}/runtime/root ] )
 then
         DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`_root"
 else
@@ -86,6 +89,11 @@ else
         fi
 fi
 
+if ( [ -f ${HOME}/runtime/root ] )
+then
+        HOST="127.0.0.1"
+fi
+
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 credentials_file=${HOME}/.mysql-credentials.cnf
 /bin/echo "[client]" > ${credentials_file}
@@ -94,20 +102,26 @@ credentials_file=${HOME}/.mysql-credentials.cnf
 /bin/echo "port=${DB_PORT}" >> ${credentials_file}
 /bin/echo "host=${HOST}" >> ${credentials_file}
 
+
 if ( [ "${raw}" != "yes" ] )
 then
         if ( [ "${sql_command}" != "" ]  )
         then
 
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N} -e "${sql_command}"
+                ${mysql} --defaults-extra-file=${credentials_file}  -A ${DB_N} -e "${sql_command}"
         else
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N}
+                ${mysql} --defaults-extra-file=${credentials_file}  -A ${DB_N}
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -A -N -r -s -e "${sql_command}" 
         else
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s
+                ${mysql} --defaults-extra-file=${credentials_file} ${DB_N} -A -N -r -s
         fi
+fi
+
+if ( [ -f ${HOME}/runtime/root ] )
+then
+        /bin/rm ${HOME}/runtime/root
 fi

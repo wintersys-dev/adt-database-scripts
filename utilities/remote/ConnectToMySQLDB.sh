@@ -21,7 +21,7 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################################
 #######################################################################################
-set -x
+#set -x
 
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 SERVER_USER_PASSWORD="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD'`"
@@ -30,8 +30,10 @@ SUDO="/bin/echo ${SERVER_USER_PASSWORD} | /usr/bin/sudo -S "
 if ( [ -f /usr/bin/mariadb ] )
 then
         mysql="/usr/bin/mariadb"
+        ssl=" --ssl=TRUE "
 else
         mysql="/usr/bin/mysql"
+        ssl=" --ssl-mode=REQUIRED "
 fi
 
 if ( [ "$#" != "0" ] )
@@ -84,8 +86,6 @@ else
 fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
-
-
 credentials_file=${HOME}/.mysql-credentials.cnf
 /bin/echo "[client]" > ${credentials_file}
 /bin/echo "user=${DB_U}" >> ${credentials_file}
@@ -98,15 +98,15 @@ then
         if ( [ "${sql_command}" != "" ]  )
         then
 
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N} -e "${sql_command}"
+                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} -A ${DB_N} -e "${sql_command}"
         else
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE -A ${DB_N}
+                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} -A ${DB_N}
         fi
 else
         if ( [ "${sql_command}" != "" ]  )
         then
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s -e "${sql_command}" 
+                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} ${DB_N} -A -N -r -s -e "${sql_command}" 
         else
-                ${mysql} --defaults-extra-file=${credentials_file} --ssl=TRUE ${DB_N} -A -N -r -s
+                ${mysql} --defaults-extra-file=${credentials_file} ${ssl} ${DB_N} -A -N -r -s
         fi
 fi

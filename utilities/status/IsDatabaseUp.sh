@@ -102,6 +102,7 @@ then
 else
 	if ( [ -f ${HOME}/runtime/DATABASE_NOT_RUNNING ] )
 	then
+		${HOME}/services/email/SendEmail.sh "DATABASE BACK UP AND RUNNING" "I think that your database is back up and running" "ERROR"
 		/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
 	fi
 fi

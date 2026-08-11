@@ -18,20 +18,20 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #####################################################################################
 #####################################################################################
-set -x
+#set -x
 
-if ( [ ! -f ${HOME}/runtime/INSTALLED_SUCCESSFULLY ] )
+if ( [ ! -f ${HOME}/runtime/DATABASE_READY ] )
 then
-	exit
+        exit
 fi
 
 running="0"
-${HOME}/utilities/remote/ConnectToRemoteMySQL.sh "exit"
+${HOME}/utilities/remote/ConnectToMySQLDB.sh "exit"
 if ( [ "$?" = "0" ] )
 then
         running="1"
 else
-        ${HOME}/utilities/remote/ConnectToRemotePostgres.sh "\q"
+        ${HOME}/utilities/remote/ConnectToPostgresDB.sh "\q"
         if ( [ "$?" = "0" ] )
         then
                 running="1"
@@ -42,51 +42,51 @@ fi
 
 if ( [ "${running}" = "0" ] )
 then
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] )
-	then
-		${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] )
+        then
+                ${HOME}/utilities/processing/RunServiceCommand.sh mariadb restart
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
 
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ] )
-	then
-		${HOME}/utilities/processing/RunServiceCommand.sh mysql restart
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ] )
+        then
+                ${HOME}/utilities/processing/RunServiceCommand.sh mysql restart
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
-	if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
-	then
-		${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
+        if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
+        then
+                ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
 
-		if ( [ "$?" != "0" ] )
-		then
-			/bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
-			/bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
-			${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
-		else
-			/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-		fi
-	fi
+                if ( [ "$?" != "0" ] )
+                then
+                        /bin/touch ${HOME}/runtime/DATABASE_NOT_RUNNING
+                        /bin/echo "${0} `/bin/date`: Couldn't restart the mariadb database this is a problem that needs to be looked into" 
+                        ${HOME}/services/email/SendEmail.sh "DATABASE MIGHT NOT BE RUNNING" "I think that your database might not be running" "ERROR"
+                else
+                        /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+                fi
+        fi
 else
-	if ( [ -f ${HOME}/runtime/DATABASE_NOT_RUNNING ] )
-	then
-		${HOME}/services/email/SendEmail.sh "DATABASE BACK UP AND RUNNING" "I think that your database is back up and running" "ERROR"
-		/bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
-	fi
+        if ( [ -f ${HOME}/runtime/DATABASE_NOT_RUNNING ] )
+        then
+                ${HOME}/services/email/SendEmail.sh "DATABASE BACK UP AND RUNNING" "I think that your database is back up and running" "ERROR"
+                /bin/rm ${HOME}/runtime/DATABASE_NOT_RUNNING
+        fi
 fi
 

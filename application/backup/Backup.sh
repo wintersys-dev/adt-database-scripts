@@ -63,7 +63,8 @@ then
         provider_id="-${CLOUDHOST}"
 fi
 
-period="`/bin/echo $1 | /usr/bin/tr '[:upper:]' '[:lower:]'`"
+period="`/bin/echo ${1} | /usr/bin/tr '[:upper:]' '[:lower:]'`"
+build_machine="${2}"
 allowed_periods="hourly daily weekly monthly bimonthly shutdown"
 if ( [ "`/bin/echo ${allowed_periods} | /bin/grep ${period}`" = "" ] )
 then
@@ -88,6 +89,11 @@ then
         current_time="`/usr/bin/date +%s`"
         backup_time="`/bin/cat ${HOME}/runtime/datastore_workarea/time_backup_written`"
 
+        time_buffer="300"
+        if ( [ "${build_machine}" = "build-machine" ] )
+        then
+                time_buffer="0"
+        fi
         if ( [ "`/usr/bin/expr ${current_time} - ${backup_time}`" -lt "300" ] )
         then
                 exit

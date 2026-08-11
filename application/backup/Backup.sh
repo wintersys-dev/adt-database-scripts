@@ -94,7 +94,7 @@ then
         then
                 time_buffer="0"
         fi
-        if ( [ "`/usr/bin/expr ${current_time} - ${backup_time}`" -lt "300" ] )
+        if ( [ "`/usr/bin/expr ${current_time} - ${backup_time}`" -lt "${time_buffer}" ] )
         then
                 exit
         fi

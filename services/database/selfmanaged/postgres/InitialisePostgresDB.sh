@@ -115,7 +115,9 @@ then
                 /bin/echo "hostssl       template1            ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
                 /bin/echo "hostssl       template1            ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
                 /bin/echo "hostssl       ${DB_N}              ${DB_U}          127.0.0.1/32          scram-sha-256" >> ${postgres_config}
-                /bin/echo "hostssl      ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+                /bin/echo "hostssl       ${DB_N}              ${DB_U}          ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+                /bin/echo "host          ${DB_N}              ${DB_U}_notls    ${IP_MASK}/16         scram-sha-256" >> ${postgres_config}
+
         else
                 /bin/sed -i "s/${DB_N_original}/${DB_N} /g" ${postgres_config}
         fi

@@ -21,6 +21,7 @@
 ##########################################################################################
 #set -x
 
+HOME="`/bin/cat /home/homedir.dat`"
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 
 if ( [ "${1}" = "" ] )

@@ -69,10 +69,10 @@ credentials_file=${HOME}/.mysql-credentials.cnf
 #try with no password set
 #/usr/bin/mariadb -A < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 #make sure by trying with password
-if ( [ "$?" != "0" ] )
-then
+#if ( [ "$?" != "0" ] )
+#then
         /usr/bin/mariadb --defaults-extra-file=${credentials_file} -A --force -u root < ${HOME}/runtime/mariadb-init/initialiseDB.sql
-fi
+#fi
 
 if ( [ "$?" != "0" ] )
 then

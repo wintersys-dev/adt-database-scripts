@@ -79,7 +79,7 @@ then
 else
         if ( [ ! -f ${HOME}/runtime/DATABASE_IP ] )
         then
-                HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
+                HOST="`${HOME}/utilities/processing/GetIP.sh`"
                 if ( [ "${HOST}" != "" ] )
                 then
                         /bin/echo ${HOST} > ${HOME}/runtime/DATABASE_IP

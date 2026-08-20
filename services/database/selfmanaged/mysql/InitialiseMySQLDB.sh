@@ -74,12 +74,12 @@ credentials_file=${HOME}/.mysql-credentials.cnf
 /bin/echo "password=${DB_P}" >> ${credentials_file}
 
 #try with no password set
-/usr/bin/mysql -A < ${HOME}/runtime/mysql-init/initialiseDB.sql
+#/usr/bin/mysql -A < ${HOME}/runtime/mysql-init/initialiseDB.sql
 #make sure by trying with password
-if ( [ "$?" != "0" ] )
-then
+#if ( [ "$?" != "0" ] )
+#then
         /usr/bin/mysql  --defaults-extra-file=${credentials_file} -A --force -u root < ${HOME}/runtime/mysql-init/initialiseDB.sql
-fi
+#fi
 
 if ( [ "$?" != "0" ] )
 then

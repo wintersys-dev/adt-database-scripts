@@ -67,7 +67,7 @@ credentials_file=${HOME}/.mysql-credentials.cnf
 /bin/echo "password=${DB_P}" >> ${credentials_file}
 
 #try with no password set
-/usr/bin/mariadb -A < ${HOME}/runtime/mariadb-init/initialiseDB.sql
+#/usr/bin/mariadb -A < ${HOME}/runtime/mariadb-init/initialiseDB.sql
 #make sure by trying with password
 if ( [ "$?" != "0" ] )
 then

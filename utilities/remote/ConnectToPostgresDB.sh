@@ -45,8 +45,8 @@ if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:D
 then
 	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
 else
-	HOST="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databaseip/*"`"
-	HOST2="`${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "databasepublicip/*"`"
+	HOST="`${HOME}/utilities/processing/GetIP.sh`"
+	HOST2="`${HOME}/utilities/processing/GetPublicIP.sh`"
 fi
 
 if ( [ "${HOST}" = "" ] && [ "${HOST2}" = "" ] )

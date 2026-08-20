@@ -22,6 +22,17 @@
 #####################################################################
 
 export HOME="`/bin/cat /home/homedir.dat`"
+
+if ( [ ! -d ${HOME}/logs/firewall ] )
+then
+        /bin/mkdir -p ${HOME}/logs/firewall
+fi
+
+out_file="firewall/firewall-out-`/bin/date | /bin/sed 's/ //g'`"
+exec 1>>${HOME}/logs/${out_file}
+err_file="firewall/firewall-err-`/bin/date | /bin/sed 's/ //g'`"
+exec 2>>${HOME}/logs/${err_file}
+
 BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 SSH_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'SSHPORT'`"
@@ -58,11 +69,6 @@ fi
 if ( [ -f ${HOME}/runtime/FIREWALL-ACTIVE ] )
 then
 	exit
-fi
-
-if ( [ ! -d ${HOME}/logs/firewall ] )
-then
-	/bin/mkdir -p ${HOME}/logs/firewall
 fi
 
 allow_vpc="sshd : `/bin/echo "${VPC_IP_RANGE}" | /usr/bin/awk -F'.' '{print $1,$2,$3.}' | /bin/sed 's/ /./g'`."

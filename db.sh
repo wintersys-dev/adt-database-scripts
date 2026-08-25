@@ -208,10 +208,10 @@ then
 			exit
 		fi	
 	fi
-#What does this do, is it needed?
-#elif ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "0" ] )
-#then
-#	${HOME}/services/database/dbaas/AdjustCredentialsForRegion.sh
+What does this do, is it needed?
+elif ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "0" ] )
+then
+	${HOME}/services/database/dbaas/AdjustCredentialsForRegion.sh
 fi
 
 # Configure the crontab

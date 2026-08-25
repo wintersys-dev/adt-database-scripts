@@ -187,8 +187,6 @@ then
 	${HOME}/services/email/SendEmail.sh "A DATABASE DID NOT INSTALL" "The database server ran out of time to install" "ERROR"
 fi
 
-exit
-
 if ( ( [ "${MULTI_REGION}" = "0" ] || ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "1" ] ) ) &&  [ "${DB_INSTALL_MODE}" != "2" ] )
 then
 	/bin/echo "${0} Initialising Database"
@@ -210,9 +208,10 @@ then
 			exit
 		fi	
 	fi
-elif ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "0" ] )
-then
-	${HOME}/services/database/dbaas/AdjustCredentialsForRegion.sh
+#What does this do, is it needed?
+#elif ( [ "${MULTI_REGION}" = "1" ] && [ "${PRIMARY_REGION}" = "0" ] )
+#then
+#	${HOME}/services/database/dbaas/AdjustCredentialsForRegion.sh
 fi
 
 # Configure the crontab

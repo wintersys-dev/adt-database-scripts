@@ -35,6 +35,15 @@ then
 elif ( [ "${DATABASE_INSTALLATION_TYPE}" = "MySQL" ] )
 then
         mysql="/usr/bin/mysql"
+elif ( [ "${DATABASE_INSTALLATION_TYPE}" = "DBaaS" ] )
+then
+        if ( [ -f /usr/bin/mariadb ] )
+        then
+                mysql="/usr/bin/mariadb"
+        elif ( [ -f /usr/bin/mysql ] )
+        then
+                mysql="/usr/bin/mysql"
+        fi
 fi
 
 if ( [ "$#" != "0" ] )

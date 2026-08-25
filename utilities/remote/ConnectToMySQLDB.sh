@@ -40,11 +40,12 @@ then
         if ( [ -f /usr/bin/mariadb ] )
         then
                 mysql="/usr/bin/mariadb"
+                verify_cert=" --ssl-verify-server-cert=true --ssl-ca ${HOME}/runtime/DBaaS_CERT "
         elif ( [ -f /usr/bin/mysql ] )
         then
                 mysql="/usr/bin/mysql"
+                verify_cert=" --ssl-mode=VERIFY_IDENTITY --ssl-ca ${HOME}/runtime/DBaaS_CERT "
         fi
-        verify_cert=" --ssl-mode=VERIFY_IDENTITY --ssl-ca ${HOME}/runtime/DBaaS_CERT "
 fi
 
 if ( [ "$#" != "0" ] )

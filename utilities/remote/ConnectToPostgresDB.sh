@@ -44,6 +44,8 @@ fi
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
 	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+	export PGSSLMODE=verify-full
+    export PGSSLROOTCERT="${HOME}/runtime/DBaaS_CERT"
 else
 	HOST="`${HOME}/utilities/processing/GetIP.sh`"
 	HOST2="`${HOME}/utilities/processing/GetPublicIP.sh`"

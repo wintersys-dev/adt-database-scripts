@@ -49,6 +49,7 @@ then
 else
 	HOST="`${HOME}/utilities/processing/GetIP.sh`"
 	HOST2="`${HOME}/utilities/processing/GetPublicIP.sh`"
+	export PGSSLMODE=require
 fi
 
 if ( [ "${HOST}" = "" ] && [ "${HOST2}" = "" ] )
@@ -76,7 +77,6 @@ fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 export PGPASSWORD=${DB_P}
-export PGSSLMODE=require
 
 if ( [ "${raw}" != "raw" ] )
 then

@@ -68,7 +68,7 @@ do
 			elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "binary" ] )
 			then
 				version="`/usr/bin/curl https://go.dev/dl/?mode=json | /usr/bin/jq -r '.[0].version' | /bin/sed 's/go//g'1`"           
-        		/usr/bin/wget -c https://dl.google.com/go/go${version}.linux-amd64.tar.gz -O - | /usr/bin/tar -xz -C /usr/local  
+        		/usr/bin/wget -4 -c https://dl.google.com/go/go${version}.linux-amd64.tar.gz -O - | /usr/bin/tar -xz -C /usr/local  
 
 				if ( [ ! -L /usr/bin/go ] )										
 				then													
@@ -84,7 +84,7 @@ do
 			elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "GO" | /usr/bin/awk -F':' '{print $NF}'`" = "binary" ] )
 			then
 				version="`/usr/bin/curl https://go.dev/dl/?mode=json | /usr/bin/jq -r '.[0].version' | /bin/sed 's/go//g'1`"           
-        		/usr/bin/wget -c https://dl.google.com/go/go${version}.linux-amd64.tar.gz -O - | /usr/bin/tar -xz -C /usr/local  
+        		/usr/bin/wget -4 -c https://dl.google.com/go/go${version}.linux-amd64.tar.gz -O - | /usr/bin/tar -xz -C /usr/local  
 
 				if ( [ ! -L /usr/bin/go ] )										
 				then													

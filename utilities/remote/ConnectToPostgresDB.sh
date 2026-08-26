@@ -74,6 +74,7 @@ fi
 
 DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
 export PGPASSWORD=${DB_P}
+export PGSSLMODE=require
 
 if ( [ "${raw}" != "raw" ] )
 then
@@ -94,16 +95,16 @@ then
 else
 	if ( [ "${sql_command}" != "" ]  )
 	then
-		/usr/bin/psql "sslmode=require" -t -U ${DB_U} -h ${HOST} -p ${DB_PORT} ${DB_N} -c "${sql_command}"
+		/usr/bin/psql -t -U ${DB_U} -h ${HOST} -p ${DB_PORT} ${DB_N} -c "${sql_command}"
 		if ( [ "$?" != "0" ] )
 		then
-			/usr/bin/psql "sslmode=require" -t -U ${DB_U} -h ${HOST2} -p ${DB_PORT} ${DB_N} -c "${sql_command}"
+			/usr/bin/psql -t -U ${DB_U} -h ${HOST2} -p ${DB_PORT} ${DB_N} -c "${sql_command}"
 		fi
 	else
-		/usr/bin/psql "sslmode=require" -U ${DB_U} -h ${HOST} -p ${DB_PORT} ${DB_N} 
+		/usr/bin/psql -U ${DB_U} -h ${HOST} -p ${DB_PORT} ${DB_N} 
 		if ( [ "$?" != "0" ] )
 		then
-			/usr/bin/psql "sslmode=require" -U ${DB_U} -h ${HOST2} -p ${DB_PORT} ${DB_N} 
+			/usr/bin/psql -U ${DB_U} -h ${HOST2} -p ${DB_PORT} ${DB_N} 
 		fi
 	fi
 fi

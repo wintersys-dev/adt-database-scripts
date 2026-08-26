@@ -52,7 +52,7 @@ then
 	/bin/sed -i "s/@applicationdomain.tld/@${ROOT_DOMAIN}/g" ${target}
 	/bin/sed -i "s/applicationdomain.tld/${ROOT_DOMAIN}/g" ${target}
 	/bin/sed -i "s/http:\/\/mail.applicationdomain.tld/http:\/\/mail.${ROOT_DOMAIN}/g" ${target}
-	/bin/sed -i "s/https:\/\/@/https:\/\//g" ${HOME}/backups/installDB/${target}
+	/bin/sed -i "s/https:\/\/@/https:\/\//g" ${target}
 
 	/bin/sed -i "s/The GreatApplication/${WEBSITE_DISPLAY_NAME}/g" ${target}
 	/bin/sed -i "s/GreatApplication/${WEBSITE_DISPLAY_NAME}/g" ${target}

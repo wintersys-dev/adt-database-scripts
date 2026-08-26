@@ -22,14 +22,14 @@
 
 if ( [ "${1}" != "" ] )
 then
-	buildos="${1}"
+        buildos="${1}"
 fi
 
 if ( [ "${buildos}" = "" ] )
 then
-	BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
+        BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 else 
-	BUILDOS="${buildos}"
+        BUILDOS="${buildos}"
 fi
 
 manager=""
@@ -37,16 +37,16 @@ options=""
 tail_options=""
 if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt" ] )
 then
-	manager="/usr/bin/apt"
-	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+        manager="/usr/bin/apt"
+        options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "apt-get" ] )
 then
-	manager="/usr/bin/apt-get"
-	options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
+        manager="/usr/bin/apt-get"
+        options="-o DPkg::Lock::Timeout=-1 -o Dpkg::Use-Pty=0 -qq -y"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "nala" ] )
 then
-	manager="${HOME}/installation/nala_wrapper.sh"
-	tail_options="-y"
+        manager="${HOME}/installation/nala_wrapper.sh"
+        tail_options="-y"
 elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "PACKAGEMANAGER" | /usr/bin/awk -F':' '{print $NF}'`" = "aptitude" ] )
 then
         manager="${HOME}/installation/aptitude_wrapper.sh"
@@ -60,63 +60,63 @@ update_command="${manager} ${options} update "
 count="0"
 while ( [ ! -f /usr/bin/psql ] && [ "${count}" -lt "5" ] )
 do
-	if ( [ "${manager}" != "" ] )
-	then
-		if ( [ "${BUILDOS}" = "ubuntu" ] )
-		then  
-			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
-			then
-				postgres_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`"
-				
-				if ( [ "${postgres_version}" = "default" ] )
-				then
-					${update_command} 
-					${install_command} postgresql-client} ${tail_options}
-				else
-					${install_command} postgresql-common} ${tail_options}
-					/bin/echo "yes" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-					${install_command} curl ca-certificates} ${tail_options}
-					/usr/bin/install -d /usr/share/postgresql-common/pgdg
-					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
-					. /etc/os-release
-					${update_command}} 
-					${install_command} postgresql-client-${postgres_version}} ${tail_options}
-				fi
-			fi
-			${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart                                                   
-		fi
+        if ( [ "${manager}" != "" ] )
+        then
+                if ( [ "${BUILDOS}" = "ubuntu" ] )
+                then  
+                        if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
+                        then
+                                postgres_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`"
 
-		if ( [ "${BUILDOS}" = "debian" ] && [ ! -f /usr/lib/postgresql ] )
-		then  
-			if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
-			then
-				postgres_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`"
+                                if ( [ "${postgres_version}" = "default" ] )
+                                then
+                                        ${update_command} 
+                                        ${install_command} postgresql-client ${tail_options}
+                                elste
+                                        ${install_command} postgresql-common ${tail_options}
+                                        /bin/echo "yes" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                                        ${install_command} curl ca-certificates ${tail_options}
+                                        /usr/bin/install -d /usr/share/postgresql-common/pgdg
+                                        /usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+                                        . /etc/os-release
+                                        ${update_command}} 
+                                        ${install_command} postgresql-client-${postgres_version} ${tail_options}
+                                fi
+                        fi
+                        ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart                                                   
+                fi
 
-				if ( [ "${postgres_version}" = "default" ] )
-				then
-					${update_command} 
-					${install_command} postgresql-client} ${tail_options}
-				else
-					${install_command} postgresql-common} ${tail_options}
-					/usr/bin/yes | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-					${install_command} curl ca-certificates} ${tail_options}
-					/usr/bin/install -d /usr/share/postgresql-common/pgdg
-					/usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
-					. /etc/os-release
-					${update_command}
-					${install_command} postgresql-client-${postgres_version}} ${tail_options}
-				fi
-			fi
-			${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
-		fi
-	fi
-	count="`/usr/bin/expr ${count} + 1`"
+                if ( [ "${BUILDOS}" = "debian" ] && [ ! -f /usr/lib/postgresql ] )
+                then  
+                        if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`" != "cloud-init" ] )
+                        then
+                                postgres_version="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "POSTGRES" | /usr/bin/awk -F':' '{print $NF}'`"
+
+                                if ( [ "${postgres_version}" = "default" ] )
+                                then
+                                        ${update_command} 
+                                        ${install_command} postgresql-client ${tail_options}
+                                else
+                                        ${install_command} postgresql-common ${tail_options}
+                                        /usr/bin/yes | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                                        ${install_command} curl ca-certificates ${tail_options}
+                                        /usr/bin/install -d /usr/share/postgresql-common/pgdg
+                                        /usr/bin/curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+                                        . /etc/os-release
+                                        ${update_command}
+                                        ${install_command} postgresql-client-${postgres_version} ${tail_options}
+                                fi
+                        fi
+                        ${HOME}/utilities/processing/RunServiceCommand.sh postgresql restart
+                fi
+        fi
+        count="`/usr/bin/expr ${count} + 1`"
 done
 
 if ( [ ! -x /usr/bin/psql ] && [ "${count}" = "5" ] )
 then
-	${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR POSTGRES" "I believe that postgres client hasn't installed correctly, please investigate" "ERROR"
+        ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR POSTGRES" "I believe that postgres client hasn't installed correctly, please investigate" "ERROR"
 else
-	/bin/touch ${HOME}/runtime/installedsoftware/InstallPostgresClient.sh
+        /bin/touch ${HOME}/runtime/installedsoftware/InstallPostgresClient.sh
 fi
 

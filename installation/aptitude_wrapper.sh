@@ -14,7 +14,7 @@ command="/usr/bin/aptitude $@"
 success="0"
 count="0"
 
-while ( [ "${success}" = "0" ] && [ "${count}" -lt "30" ] )
+while ( [ "${success}" = "0" ] && [ "${count}" -lt "5" ] )
 do
         eval "${command}"
         if ( [ "$?" = "0" ] )
@@ -26,7 +26,7 @@ do
         fi
 done
 
-if ( [ "${count}" = "30" ] )
+if ( [ "${count}" = "5" ] )
 then
         /bin/echo "command: ${command} failed"
 fi

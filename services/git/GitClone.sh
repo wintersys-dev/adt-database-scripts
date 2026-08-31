@@ -50,16 +50,16 @@ do
 
         if ( [ "${repository_provider}" = "bitbucket" ] )
         then
-                /usr/bin/git clone ${branch_command} https://${repository_username}${authentication_token}@bitbucket.org/${repository_ownername}/${repository_name}.git  ${destination_directory}
+                /usr/bin/git clone -- depth 1 ${branch_command} https://${repository_username}${authentication_token}@bitbucket.org/${repository_ownername}/${repository_name}.git  ${destination_directory}
         fi
 
         if ( [ "${repository_provider}" = "github" ] )
         then
-                /usr/bin/git clone ${branch_command} https://${repository_username}${authentication_token}@github.com/${repository_ownername}/${repository_name}.git ${destination_directory}
+                /usr/bin/git clone --depth 1 ${branch_command} https://${repository_username}${authentication_token}@github.com/${repository_ownername}/${repository_name}.git ${destination_directory}
         fi
 
         if ( [ "${repository_provider}" = "gitlab" ] )
         then
-                /usr/bin/git clone ${branch_command} https://${repository_username}${authentication_token}@gitlab.com/${repository_ownername}/${repository_name}.git ${destination_directory}
+                /usr/bin/git clone --depth 1 ${branch_command} https://${repository_username}${authentication_token}@gitlab.com/${repository_ownername}/${repository_name}.git ${destination_directory}
         fi
 done

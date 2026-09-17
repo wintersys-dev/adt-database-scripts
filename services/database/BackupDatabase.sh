@@ -23,6 +23,12 @@
 
 websiteDB="${1}"
 
+baseline="0"
+if ( [ "${websiteDB}" = "" ] )
+then
+        baseline="1"
+fi
+
 if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
 then
         HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
@@ -64,7 +70,7 @@ then
         fi
 
 
-        if ( [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "10" ] )
+        if ( [ "${baseline}" = "1" ] && [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "10" ] )
         then
                 /bin/echo "${0} `/bin/date`: There is less then 10 tables in the database. If this is expected enter 'Y' or 'y' anything else to abort" 
                 read response

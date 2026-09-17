@@ -64,10 +64,14 @@ then
         fi
 
 
-        if ( [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "5" ] )
+        if ( [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "10" ] )
         then
-                /bin/echo "${0} `/bin/date`: Failed to backup database, it seems like the tables are not there" 
-                exit
+                /bin/echo "${0} `/bin/date`: There is less then 10 tables in the database. If this is expected enter 'Y' or 'y' anything else to abort" 
+                read response
+                if ( [ "${response}" != "y" ] && [ "${response}" != "Y" ] )
+                then
+                        exit
+                fi
         fi
 
         /bin/echo "SET SESSION sql_require_primary_key = 0;" > applicationDB.sql

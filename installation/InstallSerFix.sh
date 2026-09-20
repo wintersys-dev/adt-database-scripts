@@ -40,7 +40,10 @@ do
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
 		tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
-		cd /opt
+		if ( [ "${tarball_url}" = "" ] )
+		then
+			tarball_url="`/usr/bin/curl -L https://github.com/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+		fi		cd /opt
 		/usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
 		cd /opt/astock*
 		/usr/bin/go build serfix.go
@@ -52,6 +55,10 @@ do
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
 		tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+		if ( [ "${tarball_url}" = "" ] )
+		then
+			tarball_url="`/usr/bin/curl -L https://github.com/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+		fi
 		cd /opt
 		/usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
 		cd /opt/astock*

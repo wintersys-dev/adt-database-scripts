@@ -39,7 +39,8 @@ while ( [ ! -f /usr/local/bin/serfix ] && [ "${count}" -lt "5" ] )
 do
 	if ( [ "${BUILDOS}" = "ubuntu" ] )
 	then
-		tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+		tarball_url=""
+		#tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
 		if ( [ "${tarball_url}" = "" ] )
 		then
 			tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"	
@@ -55,7 +56,8 @@ do
 
 	if ( [ "${BUILDOS}" = "debian" ] )
 	then
-		tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+		tarball_url=""
+		#tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
 		if ( [ "${tarball_url}" = "" ] )
 		then
 			tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"	

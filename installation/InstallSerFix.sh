@@ -22,14 +22,14 @@
 
 if ( [ "${1}" != "" ] )
 then
-	buildos="${1}"
+        buildos="${1}"
 fi
 
 if ( [ "${buildos}" = "" ] )
 then
-	BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
+        BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
 else 
-	BUILDOS="${buildos}"
+        BUILDOS="${buildos}"
 fi
 
 cwd="`/usr/bin/pwd`"
@@ -37,47 +37,68 @@ cwd="`/usr/bin/pwd`"
 count="0"
 while ( [ ! -f /usr/local/bin/serfix ] && [ "${count}" -lt "5" ] )
 do
-	if ( [ "${BUILDOS}" = "ubuntu" ] )
-	then
-		tarball_url=""
-		#tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
-		if ( [ "${tarball_url}" = "" ] )
-		then
-			tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"	
-		fi		
-		cd /opt
-		/usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
-		cd /opt/astock*
-		/usr/bin/go build serfix.go
-		/bin/mv serfix /usr/local/bin
-		/bin/chmod 755 /usr/local/bin/serfix
-		cd ${cwd}
-	fi
+        if ( [ "${BUILDOS}" = "ubuntu" ] )
+        then
+                tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+                #If the original repo was to not be available use a secondary one
+                if ( [ "${tarball_url}" = "" ] )
+                then
+                        tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+                fi
+                cd /opt
+                /usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
 
-	if ( [ "${BUILDOS}" = "debian" ] )
-	then
-		tarball_url=""
-		#tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
-		if ( [ "${tarball_url}" = "" ] )
-		then
-			tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"	
-		fi
-		cd /opt
-		/usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
-		cd /opt/astock*
-		/usr/bin/go build serfix.go
-		/bin/mv serfix /usr/local/bin
-		/bin/chmod 755 /usr/local/bin/serfix
-		cd ${cwd}
-	fi
-	count="`/usr/bin/expr ${count} + 1`"
+                if ( [ -d /opt/astock* ] )
+                then
+                        cd /opt/astock*
+                fi
+
+                if ( [ -d /opt/adt-* ] )
+                then
+                        cd /opt/adt-*
+                fi
+
+                /usr/bin/go build serfix.go
+                /bin/mv serfix /usr/local/bin
+                /bin/chmod 755 /usr/local/bin/serfix
+                cd ${cwd}
+        fi
+
+        if ( [ "${BUILDOS}" = "debian" ] )
+        then
+                tarball_url="`/usr/bin/curl -L https://api.github.com/repos/astockwell/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+                #If the original repo was to not be available use a secondary one
+                if ( [ "${tarball_url}" = "" ] )
+                then
+                        tarball_url="`/usr/bin/curl -L https://api.github.com/repos/adt-demos/serfix/releases/latest | /usr/bin/jq -r '.tarball_url'`"
+                fi
+
+                cd /opt
+                /usr/bin/wget -c ${tarball_url} -O- | /usr/bin/tar -xz 
+
+                if ( [ -d /opt/astock* ] )
+                then
+                        cd /opt/astock*
+                fi
+
+                if ( [ -d /opt/adt-* ] )
+                then
+                        cd /opt/adt-*
+                fi
+				
+                /usr/bin/go build serfix.go
+                /bin/mv serfix /usr/local/bin
+                /bin/chmod 755 /usr/local/bin/serfix
+                cd ${cwd}
+        fi
+        count="`/usr/bin/expr ${count} + 1`"
 done
 
 if ( [ ! -x /usr/local/bin/serfix ] && [ "${count}" = "5" ] )
 then
-	${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR SERFIX" "I believe that serfix hasn't installed correctly, please investigate" "ERROR"
+        ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR SERFIX" "I believe that serfix hasn't installed correctly, please investigate" "ERROR"
 else
-	/bin/touch ${HOME}/runtime/installedsoftware/InstallSerFix.sh
+        /bin/touch ${HOME}/runtime/installedsoftware/InstallSerFix.sh
 fi
 
 

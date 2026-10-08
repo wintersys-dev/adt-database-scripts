@@ -262,7 +262,7 @@ then
 		if ( [ "`/bin/echo ${port_token} | /bin/grep 'ipv4'`" != "" ] )
 		then
 			port="`/bin/echo ${port_token} | /usr/bin/awk -F'|' '{print $1}'`"
-			ip_address="`/bin/echo ${port_token} | /usr/bin/awk -F'|' '{print $3}'`"
+			ip_address="`/bin/echo ${port_token} | /usr/bin/awk -F'|' '{print $4}'`"
 			if ( [ "`/bin/echo ${port_token} | /usr/bin/awk -F'|' '{print $4}'`" = "DELETE" ] )
 			then
 				delete="yes"

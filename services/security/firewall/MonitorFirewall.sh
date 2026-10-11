@@ -22,11 +22,6 @@
 
 export HOME="`/bin/cat /home/homedir.dat`"
 
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`" = "ufw" ] )
-then
-        ${HOME}/services/security/firewall/ufw/MonitorFirewall.sh
-elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`" = "iptables" ] )
-then
-        ${HOME}/services/security/firewall/iptables/MonitorFirewall.sh
-fi
+firewall_type="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`"
+${HOME}/services/security/firewall/${firewall_type}/MonitorFirewall.sh
 

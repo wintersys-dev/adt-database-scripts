@@ -86,14 +86,6 @@ then
         exit
 fi
 
-firewall=""
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`" = "ufw" ] )
-then
-        firewall="ufw"
-elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`" = "iptables" ] )
-then
-        firewall="iptables"
-fi
 
 initialised="0"
 if ( [ ! -f ${HOME}/runtime/FIREWALL-INITIALISED ] )

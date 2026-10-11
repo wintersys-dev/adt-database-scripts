@@ -22,16 +22,6 @@
 
 export HOME="`/bin/cat /home/homedir.dat`"
 
-if ( [ ! -d ${HOME}/logs/firewall ] )
-then
-        /bin/mkdir -p ${HOME}/logs/firewall
-fi
-
-out_file="firewall/firewall-out-`/bin/date | /bin/sed 's/ //g'`"
-exec 1>>${HOME}/logs/${out_file}
-err_file="firewall/firewall-err-`/bin/date | /bin/sed 's/ //g'`"
-exec 2>>${HOME}/logs/${err_file}
-
 firewall_type="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "FIREWALL" | /usr/bin/awk -F':' '{print $2}'`"
 ${HOME}/services/security/firewall/${firewall_type}/SetupFirewall.sh
 

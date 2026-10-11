@@ -44,4 +44,3 @@ fi
 		/bin/rm ${HOME}/runtime/FIREWALL-ACTIVE
 	fi
 
-fi

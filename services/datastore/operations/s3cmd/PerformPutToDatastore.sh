@@ -49,10 +49,7 @@ count="$4"
 
 HOME="`/bin/cat /home/homedir.dat`"
 
-if ( [ "${place_to_put}" = "root" ] )
-then
-        place_to_put=""
-fi
+place_to_put="`/bin/echo ${place_to_put} | /bin/sed 's|root$||'`"
 
 if ( [ ! -d  ${HOME}/runtime/datastore_workarea ] )
 then

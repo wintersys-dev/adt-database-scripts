@@ -1,10 +1,35 @@
 #!/bin/sh
 #####################################################################################
 # Author: Peter Winter
-# Date :  9/4/2016
-# Description: Put a file to a bucket in your datastore(s) This can be called in 
-# local or distributed mode. Local mode is when your servers are operating in single
-# region mode and distributed mode is what is used if you are operating in multi-region mode. 
+# Date :  9/4/2021
+# Suite:  The Agile Deployment Toolkit
+# 
+# Description: This script automates uploading individual files or asset directories 
+#              to managed cloud datastores. It dynamically constructs naming 
+#              topologies for target S3 buckets based on specific system profiles. It passes the 
+#              payload to an underlying script execution engine with an optional 
+#              post-upload deletion flag, executing either against a standalone primary 
+#              endpoint ("local") or propagating sequentially across multi-node 
+#              distributed regional clusters ("distributed").
+#
+# Arguments:
+#              $1 - <bucket_type>            : Target category classification. 
+#              $2 - <file_to_put>            : Absolute or relative local pathway of the file to upload.
+#              $3 - <place_to_put>           : Target destination folder path within the bucket. Passing 
+#                                              "root" resets this to an empty base value.
+#              $4 - <mode>                   : Topology routine selection. Valid values:
+#                                              "local"       -> Single target datastore evaluation.
+#                                              "distributed" -> Multi-token configuration fanout loop.
+#              $5 - <delete>                 : Operational switch flag (e.g., true/false or 1/0) indicating 
+#                                              whether to purge the local source file after a success.
+#              $6 - [additional_specifier]   : Optional contextual tracking suffix string used for 
+#                                              asset paths, target sub-directories, or unique node tags.
+#
+# Environmental Dependencies:
+#              - /home/buildhome.dat containing valid application root pathway tracking string.
+#              - Toolkit helpers: GetVariableValue.sh script infrastructure for variable evaluations.
+#              - Environment registers: S3_ACCESS_KEY, WEBSITE_URL, DNS_CHOICE, SERVER_USER, 
+#                                       SSL_GENERATION_SERVICE configuration states.
 #####################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
@@ -17,10 +42,20 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ######################################################################################
 ######################################################################################
 #set -x
+set -e
+
+HOME="`/bin/cat /home/homedir.dat`"
+
+if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] || [ "${4}" = "" ]  || [ "${5}" = "" ] )
+then
+        /bin/echo "Error: 5 arguments are required and 1 optional argument"
+        /bin/echo "Usage: $0 <bucket_type> <file_to_put> <place_to_put> <mode> <delete> <additional_specifier>"
+        exit 1
+fi
 
 bucket_type="${1}"
 file_to_put="${2}"
@@ -31,14 +66,8 @@ additional_specifier="${6}"
 
 WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"
 DNS_CHOICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'DNSCHOICE'`"
-SSL_GENERATION_SERVICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'SSLGENERATIONSERVICE'`"
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 TOKEN="`/bin/echo ${SERVER_USER} | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]'`"
-
-if ( [ "${place_to_put}" = "root" ] )
-then
-        place_to_put=""
-fi
 
 if ( [ "${bucket_type}" = "multi-region" ] )
 then
@@ -65,21 +94,20 @@ then
         active_bucket="${active_bucket}-${DNS_CHOICE}-snap"
 fi
 
+DATASTORE_TOOL="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}'`"
 S3_ACCESS_KEY="`${HOME}/utilities/config/ExtractConfigValue.sh 'S3ACCESSKEY'`"
-
 no_tokens="`/bin/echo "${S3_ACCESS_KEY}" | /usr/bin/fgrep -o '|' | /usr/bin/wc -l`"
 no_tokens="`/usr/bin/expr ${no_tokens} + 1`"
-
 count="1"
 
 if ( [ "${mode}" = "local" ] )
 then
-        ${HOME}/services/datastore/operations/PerformPutToDatastore.sh ${file_to_put} ${active_bucket}/${place_to_put} ${delete} ${count}
+        ${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformPutToDatastore.sh ${file_to_put} ${active_bucket}/${place_to_put} ${delete} ${count}
 elif ( [ "${mode}" = "distributed" ] )
 then
         while ( [ "${count}" -le "${no_tokens}" ] )
         do
-                ${HOME}/services/datastore/operations/PerformPutToDatastore.sh ${file_to_put} ${active_bucket}/${place_to_put} "no" ${count}
+                ${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformPutToDatastore.sh ${file_to_put} ${active_bucket}/${place_to_put} "no" ${count}
                 count="`/usr/bin/expr ${count} + 1`"
         done
 fi

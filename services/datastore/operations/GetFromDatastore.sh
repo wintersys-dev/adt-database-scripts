@@ -1,9 +1,28 @@
 #!/bin/sh
 #########################################################################################
-# Author: Peter Winter
-# Date :  9/4/2016
-# Description: Get a file from a bucket in the datastore. This will only operate against your
-# first order datastore regardless of whether you are operating in mutli-region mode or not
+# Tool/Script: Context-Aware S3 Datastore Object Retrieval & Fetching Utility
+# Author:      Peter Winter
+# Date :       9/4/2021
+# Suite:       The Agile Deployment Toolkit
+# 
+# Description: This script automates individual file retrieval tasks from managed cloud 
+#              datastores. It dynamically resolves naming topologies for target S3 
+#              buckets based on specific system classifications. 
+#              Unlike purging utilities, this fetching operation executes strictly against 
+#              your primary first-order datastore instance, skipping replication loops.
+#
+# Arguments:
+#              $1 - <bucket_type>            : Target category classification. 
+#              $2 - <file_to_get>            : Name or relative pathway of the specific cloud object to fetch.
+#              $3 - <destination>            : Local directory path or target file name destination.
+#              $4 - [additional_specifier]   : Optional tracking suffix used for asset paths, directory 
+#                                              roots, or unique runtime token suffixes.
+#
+# Environmental Dependencies:
+#              - /home/buildhome.dat containing valid application root pathway tracking string.
+#              - Toolkit helpers: GetVariableValue.sh script infrastructure for variable evaluations.
+#              - Environment registers: WEBSITE_URL, DNS_CHOICE, SERVER_USER, 
+#                                       SSL_GENERATION_SERVICE configuration states.
 #########################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
@@ -16,19 +35,29 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 #########################################################################################
 #########################################################################################
 #set -x
+set -e
+
+HOME="`/bin/cat /home/homedir.dat`"
+
+if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] )
+then
+        /bin/echo "Error: 3 arguments are required and 1 optional argument"
+        /bin/echo "Usage: $0 <bucket_type> <file_to_get> <destination> <additional_specifier>"
+        exit 1
+fi
 
 bucket_type="${1}"
 file_to_get="${2}"
 destination="${3}"
 additional_specifier="${4}"
 
-WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"
-DNS_CHOICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'DNSCHOICE'`"
-SSL_GENERATION_SERVICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'SSLGENERATIONSERVICE'`"
+
+WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'AUTHSERVERURL'`"
+DNS_CHOICE="`${HOME}/utilities/config/ExtractConfigValue.sh 'AUTHDNSCHOICE'`"
 SERVER_USER="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSER'`"
 TOKEN="`/bin/echo ${SERVER_USER} | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
@@ -57,55 +86,17 @@ then
         active_bucket="${active_bucket}-${DNS_CHOICE}-snap"
 fi
 
-datastore_tool=""
-
-if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s3cmd'`" = "1" ] )
-then
-        datastore_tool="/usr/bin/s3cmd"
-elif ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:s5cmd'`" = "1" ]  )
-then
-        datastore_tool="/usr/bin/s5cmd"
-elif ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'DATASTORETOOL:rclone'`" = "1" ]  )
-then
-        datastore_tool="/usr/bin/rclone"
-fi
-
-if ( [ "${datastore_tool}" = "/usr/bin/s3cmd" ] )
-then
-        host_base="`/bin/grep ^host_base /root/.s3cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
-        datastore_cmd="${datastore_tool} --config=/root/.s3cfg-1 --host=https://${host_base} ls s3://"
-        datastore_cmd1="${datastore_tool} --config=/root/.s3cfg-1 --host=https://${host_base} get s3://"
-elif ( [ "${datastore_tool}" = "/usr/bin/s5cmd" ] )
-then
-        host_base="`/bin/grep ^host_base /root/.s5cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
-        datastore_cmd="${datastore_tool} --credentials-file /root/.s5cfg-1 --endpoint-url https://${host_base} ls s3://"
-        datastore_cmd1="${datastore_tool} --credentials-file /root/.s5cfg-1 --endpoint-url https://${host_base} cp s3://"
-elif ( [ "${datastore_tool}" = "/usr/bin/rclone" ] )
-then
-        host_base="`/bin/grep ^endpoint /root/.config/rclone/rclone.conf-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
-        datastore_cmd="${datastore_tool} --config /root/.config/rclone/rclone.conf-1 --s3-endpoint ${host_base}  ls s3:"
-        datastore_cmd1="${datastore_tool} --config /root/.config/rclone/rclone.conf-1 --s3-endpoint ${host_base} copy s3:"
-fi
+DATASTORE_TOOL="`${HOME}/utilities/config/ExtractBuildStyleValues.sh "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}'`"
 
 if ( [ "${destination}" = "" ] )
 then
         destination="."
 fi
 
-if ( [ ! -d ${destination} ] )
-then
-        /bin/mkdir -p ${destination}
-fi
+${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformGetFromDatastore.sh ${active_bucket}/${file_to_get} ${destination}
 
-if ( [ "`${datastore_cmd}${active_bucket}/${file_to_get}`" = "" ] )
+if ( [ "$?" != "0" ] )
 then
-        /bin/echo "Key does not exist"
-else
-        count="0"
-        while ( [ "`${datastore_cmd1}${active_bucket}/${file_to_get} ${destination} 2>&1 >/dev/null | /bin/grep -E "(ERROR|NOTICE)"`" != "" ] && [ "${count}" -lt "5" ] )
-        do
-                /bin/echo "An error has occured `/usr/bin/expr ${count} + 1` times in script ${0}"
-                /bin/sleep 5
-                count="`/usr/bin/expr ${count} + 1`"
-        done
+        /bin/echo "PerformGetFromDatastore.sh returned an error code"
+        exit 1
 fi

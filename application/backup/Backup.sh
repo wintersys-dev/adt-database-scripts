@@ -22,6 +22,7 @@
 #set -x
 
 HOME="`/bin/cat /home/homedir.dat`"
+machine_ip="`${HOME}/utilities/processing/GetIP.sh`"
 
 if ( [ "$1" = "" ] )
 then
@@ -42,8 +43,8 @@ fi
 log_file="backup_out_`/bin/date | /bin/sed 's/ //g'`"
 err_file="backup_err_`/bin/date | /bin/sed 's/ //g'`"
 
-/bin/echo "Log file is at: ${HOME}/logs/backup/${log_file}"
-/bin/echo "Error file is at: ${HOME}/logs/backup/${err_file}"
+/bin/echo "Log file is at: ${HOME}/logs/backup/${log_file} on machine with IP address ${machine_ip}"
+/bin/echo "Error file is at: ${HOME}/logs/backup/${err_file} on machine with IP address ${machine_ip}"
 
 exec 1>>${HOME}/logs/backup/${log_file}
 exec 2>>${HOME}/logs/backup/${err_file}

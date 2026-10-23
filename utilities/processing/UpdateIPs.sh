@@ -32,8 +32,8 @@ then
         exit
 fi
 
-${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${ip}" "databaseip" "no"
-${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${public_ip}" "databasepublicip" "no"
+${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${ip}" "databaseip/" "no"
+${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${public_ip}" "databasepublicip/" "no"
 
 if ( [ "${MULTI_REGION}" = "1" ] )
 then

@@ -105,7 +105,6 @@ then
                 ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file baseline" "ERROR"
                 exit
         fi
-        /bin/rm -r ${HOME}/backups/installDB
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
         #${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"

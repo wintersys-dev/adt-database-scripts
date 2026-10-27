@@ -130,25 +130,6 @@ DB_INSTALL_MODE="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBINSTALLMODE'
 /usr/bin/git config --global init.defaultBranch main
 /usr/bin/git config --global pull.rebase false 
 
-if ( [ -f ${HOME}/utilities/software/PushInfrastructureScriptsUpdates.sh ] )
-then
-	/bin/cp ${HOME}/utilities/software/PushInfrastructureScriptsUpdates.sh /usr/sbin/push
-	/bin/chmod 755 /usr/sbin/push
-	/bin/chown root:root /usr/sbin/push
-fi
-if ( [ -f ${HOME}/utilities/software/PushAndSyncInfrastructureScriptsUpdates.sh ] )
-then
-	/bin/cp ${HOME}/utilities/software/PushAndSyncInfrastructureScriptsUpdates.sh /usr/sbin/push-and-sync
-	/bin/chmod 755 /usr/sbin/push-and-sync
-	/bin/chown root:root /usr/sbin/push-and-sync
-fi
-if ( [ -f ${HOME}/utilities/software/SyncInfrastructureScriptsUpdates.sh ] )
-then
-	/bin/cp ${HOME}/utilities/software/SyncInfrastructureScriptsUpdates.sh /usr/sbin/sync
-	/bin/chmod 755 /usr/sbin/sync
-	/bin/chown root:root /usr/sbin/sync
-fi
-
 ${HOME}/utilities/config/StoreConfigValue.sh 'IPMASK' "`${HOME}/utilities/processing/GetIP.sh | /bin/grep -oE '[0-9]{1,3}\.[0-9]{1,3}' | /usr/bin/head -1`.%.%"
 ${HOME}/utilities/config/StoreConfigValue.sh 'MYIP' "`${HOME}/utilities/processing/GetIP.sh`" 
 ${HOME}/utilities/config/StoreConfigValue.sh 'MYPUBLICIP' "`${HOME}/utilities/processing/GetPublicIP.sh`" 

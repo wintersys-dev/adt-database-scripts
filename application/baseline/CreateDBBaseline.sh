@@ -123,42 +123,12 @@ ${HOME}/services/database/BackupDatabase.sh
 
 ${HOME}/application/branding/RemoveApplicationBranding.sh
 
-#/bin/tar cvfz ${websiteDB} applicationDB.sql
-#/bin/rm applicationDB.sql
-#/usr/bin/split -b 10M -d ${websiteDB} "application-db-"
-#/bin/rm ${websiteDB}
-#/bin/mkdir baseline
-#/bin/mv application-db* baseline
-/bin/rm -r .git
-/usr/bin/git init
-/usr/bin/git config --global --add safe.directory ${HOME}/backups
+export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
+${HOME}/services/git/PushToRepository.sh ${APPLICATION_REPOSITORY_PROVIDER} ${APPLICATION_REPOSITORY_OWNER} ${baseline_name}-db-baseline ${APPLICATION_REPOSITORY_USERNAME}
+error_code="$?"
+unset REPOSITORY_TOKEN
 
-if ( [ -f ./gitattibutes ] )
-then
-        /usr/bin/git add .gitattributes
-fi
-
-/usr/bin/git add .
-/usr/bin/git commit -m "Baseline baby"
-/usr/bin/git branch -M main
-
-REPOSITORY_PROVIDER="`${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER'`"
-
-#You can add additional repository providers here if you want to create a baseline with a different provider
-if ( [ "${REPOSITORY_PROVIDER}" = "bitbucket" ] )
-then
-        /usr/bin/git remote add origin https://${APPLICATION_REPOSITORY_USERNAME}:${APPLICATION_REPOSITORY_TOKEN}@bitbucket.org/${APPLICATION_REPOSITORY_OWNER}/${baseline_name}-db-baseline.git
-elif ( [ "${REPOSITORY_PROVIDER}" = "github" ] )
-then
-        /usr/bin/git remote add origin https://${APPLICATION_REPOSITORY_USERNAME}:${APPLICATION_REPOSITORY_TOKEN}@github.com/${APPLICATION_REPOSITORY_OWNER}/${baseline_name}-db-baseline.git
-elif ( [ "${REPOSITORY_PROVIDER}" = "gitlab" ] )
-then
-        /usr/bin/git remote add origin https://${APPLICATION_REPOSITORY_USERNAME}:${APPLICATION_REPOSITORY_TOKEN}@gitlab.com/${APPLICATION_REPOSITORY_OWNER}/${baseline_name}-db-baseline.git
-fi
-
-/usr/bin/git push -u -f origin main
-
-if ( [ "$?" != "0" ] )
+if ( [ "${error_code}" != "0" ] )
 then
         /bin/echo "Failed to generate baseline...is your application repository authorisation token valid and set correctly?"
 else

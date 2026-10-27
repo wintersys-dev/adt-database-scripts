@@ -1,9 +1,22 @@
 #!/bin/sh
-######################################################################################################
-# Author : Peter Winter
-# Date   : 13/07/2016
-# Description : This script creates a repository
-######################################################################################################
+##################################################################################
+# SCRIPT      : CreateRepository.sh
+# AUTHOR      : Peter Winter
+# DATE        : 13/07/2021
+# VERSION     : 1.0.0
+# DESCRIPTION : This script acts as an validates and orchestrates repository creation
+#               requests to the designated platform-specific implementation.
+#
+# INTERFACE   : $0 <provider> <repo_name> <auth_username>
+#
+# PARAMETERS  :
+#   $1 - repository_provider  : Hosting vendor string (e.g., github, gitlab)
+#   $2 - repository_name      : Name string of the target repository to create
+#   $3 - repository_username  : Administrative account username for authentication
+#
+# CONFIGURATION DEPENDENCIES:
+#   - Sub-driver wrapper path : ${HOME}/services/git/<provider>/CreateRepository.sh
+#######################################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -19,22 +32,25 @@
 #######################################################################################################
 #######################################################################################################
 #set -x
+set -e
 
-repository_username="${1}"
+HOME="`/bin/cat /home/homedir.dat`"
+
+if ( [ "${1}" = "" ] || [ "${2}" = "" ] )
+then
+        /bin/echo "Error: 2 arguments are required and 1 optional argumment"
+        /bin/echo "Usage: $0 <repository_provider> <repository_name> [repository_username]"
+        exit 1
+fi
+
+repository_provider="${1}"
 repository_name="${2}"
-provider_name="${3}"
-repository_password="${4}"
+repository_username="${3}"
 
-if ( [ "${provider_name}" = "bitbucket" ] )
+${HOME}/services/git/${repository_provider}/CreateRepository.sh  "${repository_username}" "${repository_name}" 
+
+if ( [ "$?" != "0" ] )
 then
-	/usr/bin/curl -X POST -v -u ${repository_username}:${repository_password} -H "Content-Type: application/json" https://api.bitbucket.org/2.0/repositories/${repository_username}/${repository_name} -d '{"scm": "git", "is_private": "true", "fork_policy": "no_public_forks" }'
-fi
-if ( [ "${provider_name}" = "github" ] )
-then
-	/usr/bin/curl -u "${repository_username}:${repository_password}" https://api.github.com/user/repos -d '{"name":"'${repository_name}'","private":"true"}'
-fi
-if ( [ "${provider_name}" = "gitlab" ] )
-then
-	APPLICATION_REPOSITORY_TOKEN="`${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYTOKEN'`"
-	/usr/bin/curl --header "PRIVATE-TOKEN: ${APPLICATION_REPOSITORY_TOKEN}" -F "name=${repository_name}" https://gitlab.com/api/v3/projects
+        /bin/echo "CreateRepository.sh exited with an error code"
+        exit 1
 fi

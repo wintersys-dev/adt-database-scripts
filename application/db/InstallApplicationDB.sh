@@ -26,7 +26,8 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################################################
 #######################################################################################################
-set -x
+#set -x
+set -e
 
 archive_id="${1}"
 
@@ -89,7 +90,9 @@ cd ${HOME}/backups/installDB
 
 if ( [ "${BUILD_ARCHIVE_CHOICE}" = "baseline" ] )
 then
+        export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
         ${HOME}/services/git/GitClone.sh "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${BASELINE_DB_REPOSITORY_NAME}" "main" "${APPLICATION_REPOSITORY_USERNAME}"
+        unset REPOSITORY_TOKEN
         if ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.sql ] )
         then
                 /bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql

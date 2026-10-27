@@ -71,7 +71,7 @@ do
 				eval ${install_command} python3 python3-dateutil ${tail_options}
 				/usr/bin/ln -s /usr/bin/python3 /usr/bin/python
 				cd /opt
-				${HOME}/services/git/GitClone.sh "github" "" "s3tools" "s3cmd" ""
+				${HOME}/services/git/GitClone.sh "github" "s3tools" "s3cmd"
 				/bin/cp /opt/s3cmd/s3cmd /usr/bin/s3cmd
 				/bin/cp -r /opt/s3cmd/S3 /usr/bin/
 				/bin/rm -r /opt/s3tools
@@ -89,7 +89,7 @@ do
 				eval ${install_command} python3 python3-dateutil ${tail_options}
 				/usr/bin/ln -s /usr/bin/python3 /usr/bin/python
 				cd /opt
-				${HOME}/services/git/GitClone.sh "github" "" "s3tools" "s3cmd" ""
+				${HOME}/services/git/GitClone.sh "github" "s3tools" "s3cmd"
 				/bin/cp /opt/s3cmd/s3cmd /usr/bin/s3cmd
 				/bin/cp -r /opt/s3cmd/S3 /usr/bin/
 				/bin/rm -r /opt/s3tools

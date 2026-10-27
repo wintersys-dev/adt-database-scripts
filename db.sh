@@ -199,7 +199,7 @@ then
 		count="0"
 		while ( [ "`${HOME}/application/db/VerifyApplicationDBInstallation.sh`" = "0" ] && [ "${count}" -lt "5" ] )
 		do
-			${HOME}/application/db/InstallApplicationDB.sh
+			${HOME}/application/InstallApplicationDB.sh
 			count="`/usr/bin/expr ${count} + 1`"
 		done
 		if ( [ "${count}" = "5" ] )

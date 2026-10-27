@@ -87,7 +87,7 @@ do
 			then
 				${HOME}/installation/InstallGo.sh ${BUILDOS}
 				cd /opt
-				${HOME}/services/git/GitClone.sh "github" "" "rclone" "rclone" ""
+				${HOME}/services/git/GitClone.sh "github" "rclone" "rclone"
 				cd /opt/rclone
 				/usr/bin/go build
 				/bin/mv /opt/rclone/rclone /usr/bin/rclone
@@ -120,7 +120,7 @@ do
 			then
 				${HOME}/installation/InstallGo.sh ${BUILDOS}
 				cd /opt
-				${HOME}/services/git/GitClone.sh "github" "" "rclone" "rclone" ""
+				${HOME}/services/git/GitClone.sh "github" "rclone" "rclone"
 				cd /opt/rclone
 				/usr/bin/go build
 				/bin/mv /opt/rclone/rclone /usr/bin/rclone

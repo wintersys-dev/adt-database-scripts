@@ -79,11 +79,15 @@ handle_exit() {
 
 trap handle_exit EXIT
 
+if ( [ -d ./.git ] )
+then
+        /bin/rm -r ./.git
+fi
+
 /usr/bin/git init
 /usr/bin/git branch -M main
 provider_url="`${HOME}/services/git/${repository_provider}/GetProviderURL.sh`"
 /usr/bin/git remote add origin https://${provider_url}/${repository_owner}/${repository_name}
-/usr/bin/git add .gitattributes
 /usr/bin/git add --all -f
 /usr/bin/git commit -m "Baseline Baby"
 /usr/bin/git push -u origin main

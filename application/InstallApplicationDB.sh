@@ -91,20 +91,21 @@ cd ${HOME}/backups/installDB
 if ( [ "${BUILD_ARCHIVE_CHOICE}" = "baseline" ] )
 then
         export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
-        ${HOME}/services/git/GitClone.sh "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${BASELINE_DB_REPOSITORY_NAME}" "main" "${APPLICATION_REPOSITORY_USERNAME}"
+        ${HOME}/services/git/GitClone.sh "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${BASELINE_DB_REPOSITORY_NAME}" "main" "." "${APPLICATION_REPOSITORY_USERNAME}"
         unset REPOSITORY_TOKEN
-        if ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.sql ] )
+
+        if ( [ -f ${HOME}/backups/installDB/applicationDB.sql ] )
         then
-                /bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
-        elif ( [ -f ${HOME}/backups/installDB/*baseline*/applicationDB.psql ] )
+                /bin/mv ${HOME}/backups/installDB/applicationDB.sql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.sql
+        elif ( [ -f ${HOME}/backups/installDB/applicationDB.psql ] )
         then
-                /bin/mv ${HOME}/backups/installDB/*baseline*/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
+                /bin/mv ${HOME}/backups/installDB/applicationDB.psql ${HOME}/backups/installDB/${WEBSITE_NAME}DB.psql
         else
                 /bin/echo "Counldn't find a suitable database file baseline. Have got to die"
                 ${HOME}/services/email/SendEmail.sh "INSTALLATION ERROR" "Couldn't find a suitable database file baseline" "ERROR"
                 exit
         fi
-        /bin/rm -r ${HOME}/backups/installDB/*baseline*
+        /bin/rm -r ${HOME}/backups/installDB
 elif ( [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then
         #${HOME}/services/datastore/operations/GetFromDatastore.sh "`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${BUILD_ARCHIVE_CHOICE}/${WEBSITE_NAME}-DB-backup.tar.gz"

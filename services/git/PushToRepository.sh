@@ -2,7 +2,7 @@
 ##################################################################################
 # SCRIPT      : PushToRepository.sh
 # AUTHOR      : Peter Winter
-# DATE        : 25/10/2026
+# DATE        : 25/10/2021
 # VERSION     : 1.0.0
 # DESCRIPTION : This script initializes a local Git workspace, sets the default 
 #               branch to main, stages all files including the .gitattributes, 

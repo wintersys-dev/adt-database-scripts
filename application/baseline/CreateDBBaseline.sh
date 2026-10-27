@@ -53,12 +53,13 @@ ROOT_DOMAIN="`/bin/echo ${WEBSITE_URL} | /usr/bin/cut -d'.' -f2-`"
 WEBSITE_DISPLAY_NAME_UPPER="`/bin/echo ${WEBSITE_DISPLAY_NAME} | /bin/sed 's/_/ /g' | /usr/bin/tr '[:lower:]' '[:upper:]'`"
 WEBSITE_DISPLAY_NAME_LOWER="`/bin/echo ${WEBSITE_DISPLAY_NAME} | /bin/sed 's/_/ /g' | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
-if ( [ ! -d ${HOME}/backups ] )
+if ( [ ! -d ${HOME}/backups/${baseline_name} ] )
 then
-        /bin/mkdir -p ${HOME}/backups
+        /bin/mkdir -p ${HOME}/backups/${baseline_name}
 fi
 
-/bin/rm -r ${HOME}/backups/* 2>/dev/null
+cd ${HOME}/backups/${baseline_name}
+
 if ( [ -d ${HOME}/.git ] )
 then
         /bin/rm -r ${HOME}/.git
@@ -116,7 +117,7 @@ DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
 DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
 DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
 
-cd ${HOME}/backups
+#cd ${HOME}/backups
 
 #. ${HOME}/services/database/PlainDumpDatabase.sh
 ${HOME}/services/database/BackupDatabase.sh

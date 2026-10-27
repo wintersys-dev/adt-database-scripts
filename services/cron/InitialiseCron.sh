@@ -65,7 +65,6 @@ SERVER_TIMEZONE_CITY="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERTIM
 /bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/housekeeping/CleanupAtReboot.sh" >> /var/spool/cron/crontabs/root
 /bin/echo "@reboot export HOME=${HOME} && ${HOME}/utilities/housekeeping/RemoveExpiredLocks.sh reboot" >> /var/spool/cron/crontabs/root
 /bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/processing/GetIP.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/software/UpdateInfrastructure.sh" >>/var/spool/cron/crontabs/root
 /bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/status/LoadMonitoring.sh 'reboot'" >> /var/spool/cron/crontabs/root
 /bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/status/CheckNetworkManagerStatus.sh" >> /var/spool/cron/crontabs/root
 

@@ -1,9 +1,25 @@
 #!/bin/sh
-#####################################################################################
-# Author : Peter Winter
-# Date   : 16/07/2016
-# Description : List a repository - can be used as a check to see if a repository exists
-#####################################################################################
+##################################################################################
+# SCRIPT      : GitLSRemote.sh
+# AUTHOR      : Peter Winter
+# DATE        : 13/06/2021
+# VERSION     : 1.0.0
+# DESCRIPTION : This script acts detects if a named repository exists for the given
+#               provider and owner
+#
+# INTERFACE   : $0 <provider> <owner_name> <repo_name> [auth_username]
+#
+# PARAMETERS  :
+#   $1 - repository_provider  : Hosting vendor string (e.g., github, gitlab)
+#   $2 - repository_ownername : Organization or profile namespace account name
+#   $3 - repository_name      : Case-sensitive project target repository name
+#   $4 - repository_username  : (Optional) Account credential token/user for auth
+#
+# CONFIGURATION DEPENDENCIES:
+#   - /home/buildhome.dat     : Must contain absolute path to build directory
+#   - Sub-driver wrapper path : ${BUILD_HOME}/services/git/<provider>/GitLSRemote.sh
+#
+######################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -19,30 +35,26 @@
 #####################################################################################
 #####################################################################################
 #set -x
+set -e
+
+HOME="`/bin/cat /home/homedir.dat`"
+
+if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] )
+then
+        /bin/echo "Error: 3 arguments are required and 1 optional argumment"
+        /bin/echo "Usage: $0 <repository_provider> <repository_ownername> <repository_name> [repository_username]"
+        exit 1
+fi
 
 repository_provider="${1}"
 repository_username="${2}"
-repository_ownername="${3}"
-repository_name="${4}"
-repository_token="${5}"
+repository_name="${3}"
+repository_ownername="${4}"
 
-authentication_token=""
+${HOME}/services/git/${repository_provider}/GitLSRemote.sh  "${repository_ownername}" "${repository_name}" "${repository_username}"
 
-if ( [ "${repository_token}" != "" ] )
+if ( [ "$?" != "0" ] )
 then
-        authentication_token=":${repository_token}"
-fi
-
-
-if ( [ "${repository_provider}" = "bitbucket" ] )
-then
-        /usr/bin/git ls-remote https://${repository_username}${authentication_token}@bitbucket.org/${repository_ownername}/${repository_name}.git | /bin/grep 'HEAD'
-fi
-if ( [ "${repository_provider}" = "github" ] )
-then
-        /usr/bin/git ls-remote https://${repository_username}${authentication_token}@github.com/${repository_ownername}/${repository_name}.git | /bin/grep 'HEAD'
-fi
-if ( [ "${repository_provider}" = "gitlab" ] )
-then
-        /usr/bin/git ls-remote https://${repository_username}${authentication_token}@gitlab.com/${repository_ownername}/${repository_name}.git | /bin/grep 'HEAD'
+        /bin/echo "GitLSRemote.sh returned an error code"
+        exit 1
 fi

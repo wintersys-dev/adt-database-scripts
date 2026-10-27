@@ -32,8 +32,6 @@ do
 	/bin/sh ${HOME}/installation/${script} ${BUILDOS}
 done
 
-${HOME}/utilities/software/UpdateInfrastructure.sh
-
 /usr/sbin/shutdown -r now
 
 

@@ -1,12 +1,12 @@
 #!/bin/sh 
 ###################################################################################
 # @file        PerformDatastoreMount.sh
-# @brief       Automated S3 Datastore Creation and Workspace Initialization Driver.
+# @brief       Automated S3 Datastore Creation and Workspace Initialisation Driver.
 # @author      Peter Winter
 # @date        09/04/2021
 # @version     1.0
 #
-# @details     This script automates backend volume initialization for target cloud
+# @details     This script automates backend volume initialisation for target cloud
 #              datastores using s5cmd. It resolves endpoint layout settings from dynamic
 #              s5cmd credential files, executes availability checks, and provisions 
 #              the required bucket structure inside target S3 object storage targets

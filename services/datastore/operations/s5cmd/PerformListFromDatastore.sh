@@ -1,18 +1,36 @@
-#!/bin/sh 
-####################################################################################
-# Author: Peter Winter
-# Date :  9/4/2021
-# Description: Automated S3 Object Content Listing and Parsing Utility.
-#              This utility extracts the storage endpoint configuration from rclone,
-#              queries the target S3 path, and reads back object metadata. It passes
-#              the raw endpoint output through text parsing streams to isolate and 
-#              print individual target file basenames cleanly to the environment.
-# Parameters:
-#              - <file_to_list>: Target S3 bucket path or file pattern to inspect.
-# Requirements:
-#              - Active s5cmd 
-#              - configuration asset located at /root/.config/rclone/rclone.conf-1
-#######################################################################################
+#!/bin/sh
+###################################################################################
+# @file        PerformListFromDatastore.sh
+# @brief       Automated S3 Datastore Object Content Listing and Parsing Driver.
+# @author      Peter Winter
+# @date        09/04/2021
+# @version     1.0
+#
+# @details     This script automates low-level item inspection within targeted cloud
+#              datastores using s5cmd. It extracts the storage endpoint configuration 
+#              from the primary s5cmd credential file, queries the target S3 path, 
+#              and reads back object metadata. It passes the raw endpoint output 
+#              through text parsing streams to isolate and print individual target 
+#              file basenames cleanly to file descriptors.
+#
+# @param       $1  [Required] Target S3 bucket pathway or file pattern to inspect.
+#
+# @env         None explicitly sourced from top-level environment registers.
+#
+# @dependencies
+#              - /home/homedir.dat configuration file tracking the active application root path.
+#              - /usr/bin/s5cmd high-performance storage integration software utility.
+#              - /root/.s5cfg-1 base primary cluster registration credentials file.
+#              - Standard output/logging routes configured on File Descriptors 3 and 4.
+#
+# @security    
+#              - Suppresses downstream standard error channels (`2>/dev/null`) to block credential exposure.
+#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
+#              - Filters pipeline output to restrict terminal visibility to targeted metadata records.
+#
+# @exit        0  Success: Target path successfully interrogated and structural objects listed.
+# @exit        1  Failure: Missing mandatory parameters or s5cmd execution driver failure.
+###################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -26,31 +44,68 @@
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ######################################################################################
-######################################################################################
 #set -x
-
 set -e
 
-status () {
-        /bin/echo "${1}" | /usr/bin/tee /dev/fd/3 2>/dev/null
-        script_name="`/bin/echo ${0} | /usr/bin/awk -F'/' '{print $NF}'`"
-        /bin/echo "${script_name}: ${1}" | /usr/bin/tee -a /dev/fd/4 2>/dev/null
+# Sourced application root tracking pathway string
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
+# Ensure logging directory structure exists safely
+if [ ! -d "${HOME}/runtime/logs/datastore" ]
+then
+        /bin/mkdir -p "${HOME}/runtime/logs/datastore"
+fi
+
+# Define log file destination path
+LOG_FILE="${HOME}/runtime/logs/datastore/ListFromDatastore.log"
+
+log_error() {
+    /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-if ( [ "${1}" = "" ] )
+status () {
+    /bin/echo "${1}" | /usr/bin/tee /dev/fd/3 2>/dev/null
+    script_name="`/bin/echo ${0} | /usr/bin/awk -F'/' '{print $NF}'`"
+    /bin/echo "${script_name}: ${1}" | /usr/bin/tee -a /dev/fd/4 2>/dev/null
+}
+
+# 1. Check for the 1 required argument safely
+if [ -z "$1" ]
 then
-        status "Error: 1 argument is required."
-        status "Usage: $0 <file_to_list>"
-        exit 1
+    status "Error: 1 argument is required."
+    status "Usage: $0 <file_to_list>"
+    log_error "Script invoked with missing arguments."
+    exit 1
 fi
 
-file_to_list="${1}"
+file_to_list="$1"
 
-host_base="`/bin/grep ^host_base /root/.s5cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
-/usr/bin/s5cmd --credentials-file /root/.s5cfg-1 --endpoint-url https://${host_base} ls s3://${file_to_list} | /usr/bin/awk '{print $NF}'  2>/dev/null
-
-if ( [ "$?" != "0" ] )
+cfg_file="/root/.s5cfg-1"
+if [ ! -f "$cfg_file" ]
 then
-        status "Failed to list file ${file_to_list} from datastore"
-        exit 1
+    status "Error: Configuration profile $cfg_file not found."
+    log_error "Profile configuration file missing: $cfg_file"
+    exit 1
 fi
+
+host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
+
+set +e
+/usr/bin/s5cmd --credentials-file "$cfg_file" --endpoint-url "https://${host_base}" ls "s3://${file_to_list}" 2>/dev/null | /usr/bin/awk '{print $NF}'
+s5cmd_status=$?
+set -e
+
+if [ $s5cmd_status -ne 0 ]
+then
+    status "Failed to list file ${file_to_list} from datastore"
+    log_error "s5cmd failed to list objects at s3://${file_to_list} (Exit code: $s5cmd_status)"
+    exit 1
+fi
+
+exit 0

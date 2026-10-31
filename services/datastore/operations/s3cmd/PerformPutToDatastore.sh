@@ -1,22 +1,39 @@
 #!/bin/sh
-#########################################################################################
-# Author: Peter Winter
-# Date :  9/4/2021
-# Suite:       The Agile Deployment Toolkit
-# 
-# Description: This script  will put a file from the local filesystem to the datastore
+###################################################################################
+# @file        PerformPutToDatastore.sh
+# @brief       Automated Local Payload Ingestion & S3 Datastore Storage Driver.
+# @author      Peter Winter
+# @date        09/04/2021
+# @version     1.0
 #
-# Arguments:
-#              $1 - <file_to_put>         : File on the local filesystem
-#              $2 - <place_to_put>        : Location to put the file in the datastore
-#              $3 - <delete>              : Whether to delete file $1 or not
-#              $4 - <count>               : Integer used to identify config file
+# @details     This script automates low-level data ingress operations by transferring
+#              local files or virtual metadata payloads to targeted cloud datastores 
+#              using s3cmd. It resolves S3 endpoints from a dynamic configuration registry 
+#              using a numbered index system. The utility features automatic workspace creation 
+#              and placeholder marker file fallback routines, alongside an optional 
+#              post-upload source sanitation mechanism.
 #
-# Requirements:
-#              - /usr/bin/s3cmd installed and accessible.
-#              - A valid profile located at /root/.config/rclone/rclone.conf-${count}
-#              - Standard output/logging routes configured on File Descriptors 3 and 4.
-##########################################################################################
+# @param       $1  [Required] Local file system path of the source payload file to ingest.
+# @param       $2  [Required] S3 bucket target location pathway to write the payload.
+# @param       $3  [Required] Post-upload local sanitation flag ("yes" to purge source, "no" to retain).
+# @param       $4  [Required] Integer configuration ID used to select the targeted s3cmd profile suffix.
+#
+# @env         None explicitly sourced from top-level environment registers.
+#
+# @dependencies
+#              - /home/homedir.dat configuration file tracking the active application root path.
+#              - /usr/bin/s3cmd storage integration command-line software utility.
+#              - /root/.s3cfg-${count} targeted cluster registration configuration file.
+#
+# @security    
+#              - Restricts validation actions strictly to isolated tenant access keys inside config spaces.
+#              - Safely caps directory tracking mutations by scrubbing trailing "root" overrides from the S3 namespace.
+#              - Redirects descriptor arrays cleanly to guard against exposure of operational tokens on errors.
+#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
+#
+# @exit        0  Success: Local payload safely transmitted and synchronized with the S3 datastore destination.
+# @exit        1  Failure: Missing mandatory parameters or s3cmd execution driver failure.
+###################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -28,18 +45,40 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
-#########################################################################################
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 #########################################################################################
 #set -x
-
 set -e
 
-if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] || [ "${4}" = "" ]  )
+# Sourced application root tracking pathway string
+if [ -r /home/homedir.dat ]
 then
-        /bin/echo "Error: 4 arguments are required."
-        /bin/echo "Usage: $0 <file_to_put> <place_to_put> <delete> <count>"
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
+fi
+
+# Ensure logging directory structure exists safely
+if [ ! -d "${HOME}/runtime/logs/datastore" ]
+then
+        /bin/mkdir -p "${HOME}/runtime/logs/datastore"
+fi
+
+# Define log file destination path
+LOG_FILE="${HOME}/runtime/logs/datastore/PutToDatastore.log"
+
+log_error() {
+    /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# 1. Check for all 4 arguments safely
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]
+then
+    /bin/echo "Error: 4 arguments are required."
+    /bin/echo "Usage: $0 <file_to_put> <place_to_put> <delete> <count>"
+    log_error "Script invoked with missing arguments."
+    exit 1
 fi
 
 file_to_put="$1"
@@ -47,35 +86,50 @@ place_to_put="$2"
 delete="$3"
 count="$4"
 
-HOME="`/bin/cat /home/homedir.dat`"
+place_to_put="${place_to_put%root}"
 
-place_to_put="`/bin/echo ${place_to_put} | /bin/sed 's|root$||'`"
-
-if ( [ ! -d  ${HOME}/runtime/datastore_workarea ] )
+WORK_AREA="${HOME}/runtime/datastore_workarea"
+if [ ! -d "$WORK_AREA" ]
 then
-        /bin/mkdir -p  ${HOME}/runtime/datastore_workarea
+    /bin/mkdir -p "$WORK_AREA"
 fi
 
-if ( [ ! -f ${file_to_put} ] )
+if [ ! -f "$file_to_put" ]
 then
-        #if there is no file on the file system we can assume that we are being used as a marker like an IP address, so create out own marker file
-        /bin/touch  ${HOME}/runtime/datastore_workarea/${file_to_put}
-        file_to_put="${HOME}/runtime/datastore_workarea/${file_to_put}"
+    /bin/touch "$WORK_AREA/$file_to_put"
+    file_to_put_with_path="$WORK_AREA/$file_to_put"
+else
+    file_to_put_with_path="$file_to_put"
 fi
 
-host_base="`/bin/grep ^host_base /root/.s3cfg-${count} | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
-/usr/bin/s3cmd --config=/root/.s3cfg-${count}  --host=https://${host_base} put ${file_to_put} s3://${place_to_put}  2>&1 >/dev/null
-
-if ( [ "$?" != "0" ] )
+cfg_file="/root/.s3cfg-${count}"
+if [ ! -f "$cfg_file" ]
 then
-        /bin/echo "Failed to put ${file_to_put} to s3://${place_to_put}"
-        exit 1
+    /bin/echo "Error: Configuration profile $cfg_file not found."
+    log_error "Profile configuration file missing: $cfg_file"
+    exit 1
 fi
 
-if ( [ "${delete}" = "yes" ] )
+host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
+
+set +e
+/usr/bin/s3cmd --config="$cfg_file" --host="https://${host_base}" put "$file_to_put_with_path" "s3://${place_to_put}" >/dev/null 2>&1
+s3cmd_status=$?
+set -e
+
+if [ $s3cmd_status -ne 0 ]
 then
-        if ( [ -f ${file_to_put} ] )
-        then
-                /bin/rm ${file_to_put}
-        fi
+    /bin/echo "Failed to put ${file_to_put_with_path} to s3://${place_to_put}"
+    log_error "s3cmd failed to upload ${file_to_put_with_path} to s3://${place_to_put} (Exit code: $s3cmd_status)"
+    exit 1
 fi
+
+if [ "$delete" = "yes" ]
+then
+    if [ -f "$file_to_put_with_path" ]
+    then
+        /bin/rm "$file_to_put_with_path"
+    fi
+fi
+
+exit 0

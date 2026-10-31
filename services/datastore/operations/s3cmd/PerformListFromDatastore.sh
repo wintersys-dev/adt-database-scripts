@@ -1,18 +1,34 @@
 #!/bin/sh 
-####################################################################################
-# Author: Peter Winter
-# Date :  9/4/2021
-# Description: Automated S3 Object Content Listing and Parsing Utility.
-#              This utility extracts the storage endpoint configuration from rclone,
-#              queries the target S3 path, and reads back object metadata. It passes
-#              the raw endpoint output through text parsing streams to isolate and 
-#              print individual target file basenames cleanly to the environment.
-# Parameters:
-#              - <file_to_list>: Target S3 bucket path or file pattern to inspect.
-# Requirements:
-#              - Active s3cmd 
-#              - configuration asset located at /root/.config/rclone/rclone.conf-1
-#######################################################################################
+###################################################################################
+# @file        PerformListFromDatastore.sh
+# @brief       Automated S3 Datastore Object Content Listing and Parsing Driver.
+# @author      Peter Winter
+# @date        09/04/2021
+# @version     1.0
+#
+# @details     This script automates low-level item inspection within targeted cloud
+#              datastores using s3cmd. It extracts the storage endpoint configuration 
+#              from the primary s3cmd configuration profile, queries the target S3 path 
+#              recursively, and processes the raw metadata through filtering text parsing 
+#              streams to isolate and print individual target file basenames cleanly.
+#
+# @param       $1  [Required] Target S3 bucket pathway or file pattern to inspect.
+#
+# @env         None explicitly sourced from top-level environment registers.
+#
+# @dependencies
+#              - /home/homedir.dat configuration file tracking the active application root path.
+#              - /usr/bin/s3cmd storage integration command-line software utility.
+#              - /root/.s3cfg-1 base primary cluster registration configuration file.
+#
+# @security    
+#              - Suppresses downstream standard error channels (`2>/dev/null`) to block credential exposure.
+#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
+#              - Limits terminal output purely to parsed un-hashed structural path basenames.
+#
+# @exit        0  Success: Target path successfully interrogated and structural objects listed.
+# @exit        1  Failure: Missing mandatory parameters or s3cmd execution driver failure.
+###################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -26,25 +42,62 @@
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ######################################################################################
-######################################################################################
 #set -x
 set -e
 
-
-if ( [ "${1}" = "" ] )
+# Sourced application root tracking pathway string
+if [ -r /home/homedir.dat ]
 then
-        /bin/echo "Error: 1 argument is required."
-        /bin/echo "Usage: $0 <file_to_list>"
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-file_to_list="${1}"
-
-host_base="`/bin/grep ^host_base /root/.s3cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
-/usr/bin/s3cmd --recursive --config=/root/.s3cfg-1 --host=https://${host_base} ls s3://${file_to_list} | awk '{print $NF}'| sed 's|s3://||' | awk -F'/' '{print $NF}' 2>/dev/null
-
-if ( [ "$?" != "0" ] )
+# Ensure logging directory structure exists safely
+if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
-        /bin/echo "Failed to list file ${file_to_list} from datastore"
-        exit 1
+        /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
+
+# Define log file destination path
+LOG_FILE="${HOME}/runtime/logs/datastore/ListFromDatastore.log"
+
+log_error() {
+    /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# 1. Check for the 1 required argument safely
+if [ -z "$1" ]
+then
+    /bin/echo "Error: 1 argument is required."
+    /bin/echo "Usage: $0 <file_to_list>"
+    log_error "Script invoked with missing arguments."
+    exit 1
+fi
+
+file_to_list="$1"
+
+cfg_file="/root/.s3cfg-1"
+if [ ! -f "$cfg_file" ]
+then
+    /bin/echo "Error: Configuration profile $cfg_file not found."
+    log_error "Profile configuration file missing: $cfg_file"
+    exit 1
+fi
+
+host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
+
+set +e
+/usr/bin/s3cmd --recursive --config="$cfg_file" --host="https://${host_base}" ls "s3://${file_to_list}" 2>/dev/null | /usr/bin/awk '{print $NF}' | /usr/bin/sed 's|s3://||' | /usr/bin/awk -F'/' '{print $NF}'
+s3cmd_status=$?
+set -e
+
+if [ $s3cmd_status -ne 0 ]
+then
+    /bin/echo "Failed to list file ${file_to_list} from datastore"
+    log_error "s3cmd failed to list objects recursively at s3://${file_to_list} (Exit code: $s3cmd_status)"
+    exit 1
+fi
+
+exit 0

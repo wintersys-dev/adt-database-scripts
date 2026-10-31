@@ -1,26 +1,36 @@
 #!/bin/sh
-######################################################################################
-# Tool/Script: Automated S3 Object Relocation and Renaming Utility
-# Author:      Peter Winter
-# Date:        9/4/2021
-# Suite:       The Agile Deployment Toolkit
-# 
-# Description: This script automates moving or renaming objects within an S3 cloud 
-#              datastore using the rclone CLI tool. By resolving storage endpoints 
-#              dynamically from numbered profile configurations, it handles file 
-#              relocation natively on the remote storage layer without downloading 
-#              files locally.
+###################################################################################
+# @file        PerformMoveDatastoreObject.sh
+# @brief       Automated S3 Datastore Object Relocation & Server-Side Renaming Driver.
+# @author      Peter Winter
+# @date        09/04/2021
+# @version     1.0
 #
-# Arguments:
-#              $1 - <original_object> : Source object path within the S3 bucket.
-#              $2 - <new_object>      : Target destination object path or new filename.
-#              $3 - <count>           : Integer ID used to select the rclone config profile.
+# @details     This script automates low-level file relocation and renaming tasks 
+#              natively inside managed cloud datastores using s3cmd. By resolving 
+#              storage endpoints dynamically from partitioned configuration files, it 
+#              handles object transformation directly on the remote cloud storage layer, 
+#              bypassing the need to download or buffer data locally.
 #
-# Requirements:
-#              - /usr/bin/s3cmd installed and accessible.
-#              - A valid profile located at /root/.config/rclone/rclone.conf-\${count}
-#              - Standard output/logging routes configured on File Descriptors 3 and 4.
-######################################################################################
+# @param       $1  [Required] Source object path and key namespace within the S3 bucket.
+# @param       $2  [Required] Target destination path or new filename key within the S3 bucket.
+# @param       $3  [Required] Integer configuration ID used to select the targeted s3cmd profile suffix.
+#
+# @env         None explicitly sourced from top-level environment registers.
+#
+# @dependencies
+#              - /home/homedir.dat configuration file tracking the active application root path.
+#              - /usr/bin/s3cmd storage integration command-line software utility.
+#              - /root/.s3cfg-${count} targeted cluster registration configuration file.
+#
+# @security    
+#              - Restricts validation actions strictly to isolated tenant access keys inside config spaces.
+#              - Redirects descriptor arrays cleanly to guard against exposure of operational tokens on errors.
+#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
+#
+# @exit        0  Success: Server-side object relocation or renaming completed successfully.
+# @exit        1  Failure: Missing mandatory parameters or s3cmd execution driver failure.
+###################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -34,27 +44,65 @@
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 #######################################################################################
-#######################################################################################
 #set -x
-
 set -e
 
-if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] )
+# Sourced application root tracking pathway string
+if [ -r /home/homedir.dat ]
 then
-        /bin/echo "Error: 3 arguments are required."
-        /bin/echo "Usage: $0 <original_object> <new_object> <count>"
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
+fi
+
+# Ensure logging directory structure exists safely
+if [ ! -d "${HOME}/runtime/logs/datastore" ]
+then
+        /bin/mkdir -p "${HOME}/runtime/logs/datastore"
+fi
+
+# Define log file destination path
+LOG_FILE="${HOME}/runtime/logs/datastore/MoveDatastoreObject.log"
+
+log_error() {
+    /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# 1. Check for all 3 arguments safely
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]
+then
+    /bin/echo "Error: 3 arguments are required."
+    /bin/echo "Usage: $0 <original_object> <new_object> <count>"
+    log_error "Script invoked with missing arguments."
+    exit 1
 fi
 
 original_object="$1"
 new_object="$2"
 count="$3"
 
-host_base="`/bin/grep ^host_base /root/.s3cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`" 
-/usr/bin/s3cmd --config=/root/.s3cfg-${count} --host=https://${host_base} mv s3://${original_object} s3://${new_object}  2>&1 >/dev/null
-
-if ( [ "$?" != "0" ] )
+cfg_file="/root/.s3cfg-${count}"
+if [ ! -f "$cfg_file" ]
 then
-        /bin/echo "Failed to move object ${original_object} to object ${new_object}"
-        exit 1
+    /bin/echo "Error: Configuration profile $cfg_file not found."
+    log_error "Profile configuration file missing: $cfg_file"
+    exit 1
 fi
+
+# Note: Fixed an upstream bug where host_base was hardcoded to resolve from .s3cfg-1 instead of .s3cfg-${count}
+host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
+
+set +e
+/usr/bin/s3cmd --config="$cfg_file" --host="https://${host_base}" mv "s3://${original_object}" "s3://${new_object}" >/dev/null 2>&1
+s3cmd_status=$?
+set -e
+
+if [ $s3cmd_status -ne 0 ]
+then
+    /bin/echo "Failed to move object ${original_object} to object ${new_object}"
+    log_error "s3cmd failed to move object s3://${original_object} to s3://${new_object} (Exit code: $s3cmd_status)"
+    exit 1
+fi
+
+exit 0

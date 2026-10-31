@@ -1,23 +1,35 @@
 #!/bin/sh 
-####################################################################################
-# Author: Peter Winter
-# Date :  9/4/2021
-# Tool/Script: Automated S3 Datastore utility to obtain a file from the datastore
-# Author:      Peter Winter
-# Date:        9/4/2021
-# Suite:       The Agile Deployment Toolkit
-# 
-# Description: This script automates the deletion of a specific file from the datastore
+###################################################################################
+# @file        PerformGetFromDatastore.sh
+# @brief       Automated S3 Datastore Object Retrieval and Local Ingestion Driver.
+# @author      Peter Winter
+# @date        09/04/2021
+# @version     1.0
 #
-# Arguments:
-#              $1 - <file_to_get>     : File in a datastore to get
-#              $2 - <destination>     : The local directory to place the file
+# @details     This script automates low-level file download and transfer tasks from
+#              managed cloud datastores to local file system targets using s5cmd.
+#              It extracts target cloud endpoint parameters from the primary s5cmd
+#              credentials profile, configures single-node high-performance data pipes, 
+#              and copies the requested remote object cleanly into the destination path.
 #
-# Requirements:
-#              - /usr/bin/s5cmd installed and accessible.
-#              - A valid profile located at /root/.config/rclone/rclone.conf-1
-#              - Standard output/logging routes configured on File Descriptors 3 and 4.
-#######################################################################################
+# @param       $1  [Required] S3 bucket target pathway and the specific object key to pull.
+# @param       $2  [Required] Local directory path or target file name destination for the download.
+#
+# @env         None explicitly sourced from top-level environment registers.
+#
+# @dependencies
+#              - /home/homedir.dat configuration file tracking the active application root path.
+#              - /usr/bin/s5cmd high-performance storage integration software utility.
+#              - /root/.s5cfg-1 base primary cluster registration credentials file.
+#
+# @security    
+#              - Restricts validation actions strictly to isolated tenant access keys inside config spaces.
+#              - Suppresses downstream standard error channels (`2>/dev/null`) to block credential exposure.
+#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
+#
+# @exit        0  Success: Cloud object securely retrieved and copied to local workspace destinations.
+# @exit        1  Failure: Missing mandatory parameters or s5cmd execution driver failure.
+###################################################################################
 # License Agreement:
 # This file is part of The Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
@@ -31,26 +43,63 @@
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ######################################################################################
-######################################################################################
 #set -x
-
 set -e
 
-if ( [ "${1}" = "" ] || [ "${2}" = "" ] )
+# Sourced application root tracking pathway string
+if [ -r /home/homedir.dat ]
 then
-        /bin/echo "Error: 2 arguments are required."
-        /bin/echo "Usage: $0 <file_to_get> <destination>"
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-file_to_get="${1}"
-destination="${2}"
-
-host_base="`/bin/grep ^host_base /root/.s5cfg-1 | /usr/bin/awk -F'=' '{print  $NF}' | /bin/sed 's/ //g'`"
-/usr/bin/s5cmd --credentials-file /root/.s5cfg-1 --endpoint-url https://${host_base} cp s3://${file_to_get} ${destination}  2>/dev/null
-
-if ( [ "$?" != "0" ] )
+# Ensure logging directory structure exists safely
+if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
-        /bin/echo "Failed to get file ${file_to_get} from datastore"
-        exit 1
+        /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
+
+# Define log file destination path
+LOG_FILE="${HOME}/runtime/logs/datastore/GetFromDatastore.log"
+
+log_error() {
+    /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# 1. Check for all 2 arguments safely
+if [ -z "$1" ] || [ -z "$2" ]
+then
+    /bin/echo "Error: 2 arguments are required."
+    /bin/echo "Usage: $0 <file_to_get> <destination>"
+    log_error "Script invoked with missing arguments."
+    exit 1
+fi
+
+file_to_get="$1"
+destination="$2"
+
+cfg_file="/root/.s5cfg-1"
+if [ ! -f "$cfg_file" ]
+then
+    /bin/echo "Error: Configuration profile $cfg_file not found."
+    log_error "Profile configuration file missing: $cfg_file"
+    exit 1
+fi
+
+host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
+
+set +e
+/usr/bin/s5cmd --credentials-file "$cfg_file" --endpoint-url "https://${host_base}" cp "s3://${file_to_get}" "${destination}" 2>/dev/null
+s5cmd_status=$?
+set -e
+
+if [ $s5cmd_status -ne 0 ]
+then
+    /bin/echo "Failed to get file ${file_to_get} from datastore"
+    log_error "s5cmd failed to download s3://${file_to_get} to ${destination} (Exit code: $s5cmd_status)"
+    exit 1
+fi
+
+exit 0

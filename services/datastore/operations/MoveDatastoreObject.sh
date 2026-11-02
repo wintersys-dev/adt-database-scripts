@@ -23,7 +23,6 @@
 # @env         S3_ACCESS_KEY           Access token configurations used for fanout loops.
 # @env         WEBSITE_URL             Primary base domain identifier mapping out schemas.
 # @env         DNS_CHOICE              Configuration flag used to tag platform routing options.
-# @env         SSL_GENERATION_SERVICE  Target backend token logic router (LETSENCRYPT/ZEROSSL).
 # @env         SERVER_USER             Base tracking string used to generate local tokens.
 #
 # @dependencies
@@ -97,44 +96,15 @@ new_object="${3}"
 mode="${4}"
 additional_specifier="${5}"
 
-HOSTNAME_VAL="$(/usr/bin/hostname)"
-if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
-then
-        WEBSITE_URL="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'AUTHSERVERURL')"
-        DNS_CHOICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'AUTHDNSCHOICE')"
-else
-        WEBSITE_URL="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
-        DNS_CHOICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'DNSCHOICE')"
-fi
-
-SSL_GENERATION_SERVICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SSLGENERATIONSERVICE')"
+WEBSITE_URL="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
+DNS_CHOICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'DNSCHOICE')"
 SERVER_USER="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SERVERUSER')"
-
 TOKEN="$(/bin/echo "${SERVER_USER}" | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]')"
-
 url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
 
 active_bucket=""
 
 case "${bucket_type}" in
-        "ssl")
-                service_token=""
-                if [ "${SSL_GENERATION_SERVICE}" = "LETSENCRYPT" ]
-                then
-                        service_token="lets"
-                elif [ "${SSL_GENERATION_SERVICE}" = "ZEROSSL" ]
-                then
-                        service_token="zero" 
-                fi
-                active_bucket="${url_hyphenated}-${DNS_CHOICE}-${service_token}-ssl"
-                ;;
-        "multi-region")
-                active_bucket="${url_hyphenated}-multi-region"
-                ;;
-        "webroot-sync")
-                specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
-                active_bucket="${url_hyphenated}-webroot-sync-tunnel${specifier_sanitized}"
-                ;;
         "config-sync")
                 specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
                 active_bucket="${url_hyphenated}-config-sync-tunnel${specifier_sanitized}"
@@ -142,55 +112,11 @@ case "${bucket_type}" in
         "config")
                 active_bucket="$(/bin/echo "${WEBSITE_URL}-config" | /bin/sed 's/\./-/g')-${TOKEN}"
                 ;;
-        "asset")
-                active_bucket="$(/bin/echo "${WEBSITE_URL}-assets-${additional_specifier}" | /bin/sed -e 's/\./-/g' -e 's;/;-;g' -e 's/--/-/g')"
-                ;;
         "backup")
                 active_bucket="${url_hyphenated}-${additional_specifier}"
                 ;;
-        "auth")
-                active_bucket="authip-adt-allowed-${additional_specifier}"
-                ;;
-        "dbaas")
-                active_bucket="${url_hyphenated}-${DNS_CHOICE}-dbaas"
-                ;;
         "snap")
                 active_bucket="${url_hyphenated}-${DNS_CHOICE}-snap"
-                ;;
-        "firewall-auth-laptop-ips"|"firewall-emailed-links"|"whitelist-auth-laptop-ips"|"whitelist-emailed-links"|"basic-auth-credentials"|"wire-guard"|"wire-guard-emails"|"wire-guard-emailed-links")
-                if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
-                then
-                        WEBSITE_URL_ALT="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURLORIGINAL')"
-                else
-                        WEBSITE_URL_ALT="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
-                fi
-                url_hyphenated_alt="$(/bin/echo "${WEBSITE_URL_ALT}" | /bin/sed 's/\./-/g')"
-                
-                if [ "${bucket_type}" = "firewall-auth-laptop-ips" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-firewall-auth-laptop-ips"
-                elif [ "${bucket_type}" = "firewall-emailed-links" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-firewall-emailed-links"
-                elif [ "${bucket_type}" = "whitelist-auth-laptop-ips" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-whitelist-auth-laptop-ips"
-                elif [ "${bucket_type}" = "whitelist-emailed-links" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-whitelist-emailed-links"
-                elif [ "${bucket_type}" = "basic-auth-credentials" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-basic-auth-credentials"
-                elif [ "${bucket_type}" = "wire-guard" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-wireguard"
-                elif [ "${bucket_type}" = "wire-guard-emails" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-wireguard-emails"
-                elif [ "${bucket_type}" = "wire-guard-emailed-links" ]
-                then
-                        active_bucket="${url_hyphenated_alt}-wireguard-emailed-links"
-                fi
                 ;;
         "ad-hoc")
                 active_bucket="${additional_specifier}"

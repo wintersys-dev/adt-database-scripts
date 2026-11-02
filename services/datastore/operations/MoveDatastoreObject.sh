@@ -105,10 +105,10 @@ url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
 active_bucket=""
 
 case "${bucket_type}" in
-        "config-sync")
-                specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
-                active_bucket="${url_hyphenated}-config-sync-tunnel${specifier_sanitized}"
-                ;;
+     #   "config-sync")
+     #           specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
+     #           active_bucket="${url_hyphenated}-config-sync-tunnel${specifier_sanitized}"
+     #           ;;
         "config")
                 active_bucket="$(/bin/echo "${WEBSITE_URL}-config" | /bin/sed 's/\./-/g')-${TOKEN}"
                 ;;

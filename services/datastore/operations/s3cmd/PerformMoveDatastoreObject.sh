@@ -47,7 +47,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -56,20 +55,17 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/MoveDatastoreObject.log"
 
 log_error() {
     /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-# 1. Check for all 3 arguments safely
 if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]
 then
     /bin/echo "Error: 3 arguments are required."
@@ -90,7 +86,6 @@ then
     exit 1
 fi
 
-# Note: Fixed an upstream bug where host_base was hardcoded to resolve from .s3cfg-1 instead of .s3cfg-${count}
 host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
 
 set +e

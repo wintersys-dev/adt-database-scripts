@@ -45,7 +45,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -54,20 +53,17 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/ListFromDatastore.log"
 
 log_error() {
     /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-# 1. Check for the 1 required argument safely
 if [ -z "$1" ]
 then
     /bin/echo "Error: 1 argument is required."
@@ -78,7 +74,6 @@ fi
 
 file_to_list="$1"
 
-# Strip wildcard markers defensively
 file_to_list=$(/bin/echo "$file_to_list" | /usr/bin/tr -d '*')
 
 cfg_file="/root/.config/rclone/rclone.conf-1"

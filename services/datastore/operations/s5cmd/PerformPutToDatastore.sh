@@ -37,7 +37,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -46,13 +45,11 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/PutToDatastore.log"
 
 log_error() {

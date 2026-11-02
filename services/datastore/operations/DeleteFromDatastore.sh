@@ -68,10 +68,8 @@ then
         /bin/mkdir -p ${HOME}/runtime/logs/datastore
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/DeleteFromDatastore.log"
 
-# Unified error reporting handler that writes to syslog/log file and stderr
 log_error()
 {
         error_msg="[$(/bin/date '+%Y-%m-%d %H:%M:%S')] ERROR: ${1}"
@@ -84,9 +82,6 @@ log_error()
         fi
 }
 
-
-
-# Input validation
 if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ]
 then
         log_error "3 arguments are required and 1 optional argument"
@@ -99,7 +94,6 @@ file_to_delete="${2}"
 mode="${3}"
 additional_specifier="${4}"
 
-# Determine context paths safely
 HOSTNAME_VAL="$(/usr/bin/hostname)"
 if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
 then
@@ -204,7 +198,6 @@ case "${bucket_type}" in
                 ;;
 esac
 
-# Ensure a bucket parsing rule matched
 if [ -z "${active_bucket}" ]
 then
         log_error "Invalid bucket type specified or failed to build naming topology."
@@ -214,14 +207,12 @@ fi
 DATASTORE_TOOL="$("${HOME}/utilities/config/ExtractBuildStyleValues.sh" "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}')"
 S3_ACCESS_KEY="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'S3ACCESSKEY')"
 
-# Safely compute token counts
 no_tokens="$(/bin/echo "${S3_ACCESS_KEY}" | /usr/bin/fgrep -o '|' | /usr/bin/wc -l)"
 no_tokens="$(/usr/bin/expr "${no_tokens}" + 1)"
 
 count="1"
 execution_driver="${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformDeleteFromDatastore.sh"
 
-# Execution handling with wrapped defensive boundaries
 if [ "${mode}" = "local" ]
 then
         "${execution_driver}" "${active_bucket}/${file_to_delete}" "${count}"

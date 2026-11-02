@@ -60,14 +60,12 @@ then
         /bin/mkdir -p ${HOME}/runtime/logs/datastore
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/DeleteFromDatastore.log"
 
 log_error() {
     /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-# 1. Check for all 2 arguments safely
 if [ -z "$1" ] || [ -z "$2" ]
 then
     /bin/echo "Error: 2 arguments are required."

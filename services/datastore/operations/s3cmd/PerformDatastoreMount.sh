@@ -47,7 +47,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -56,20 +55,17 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/MountDatastore.log"
 
 log_error() {
     /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-# 1. Check for all 2 arguments safely
 if [ -z "$1" ] || [ -z "$2" ]
 then
     /bin/echo "Error: 2 arguments are required."
@@ -91,13 +87,11 @@ fi
 
 host_base=$(/usr/bin/grep ^host_base "$cfg_file" | /usr/bin/awk -F'=' '{print $NF}' | /usr/bin/tr -d ' ')
 
-# Run bucket evaluation and creation
 set +e
 check_output=$(/usr/bin/s3cmd --config="$cfg_file" --host="https://${host_base}" ls "s3://${datastore_to_mount}" 2>/dev/null)
 check_status=$?
 
 if [ $check_status -ne 0 ] || [ -z "$check_output" ]
-# If the bucket does not exist or listing fails, attempt to provision it
 then
     /usr/bin/s3cmd --config="$cfg_file" --host="https://${host_base}" mb "s3://${datastore_to_mount}" >/dev/null 2>&1
     mb_status=$?

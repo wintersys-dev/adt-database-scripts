@@ -57,7 +57,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -66,16 +65,13 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/MoveDatastoreObject.log"
 
-# Unified error reporting handler that writes to syslog/log file and stderr
 log_error()
 {
         error_msg="[$(/bin/date '+%Y-%m-%d %H:%M:%S')] ERROR: ${1}"
@@ -88,7 +84,6 @@ log_error()
         fi
 }
 
-# Input validation
 if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
 then
         log_error "4 arguments are required and 1 optional argument"
@@ -102,7 +97,6 @@ new_object="${3}"
 mode="${4}"
 additional_specifier="${5}"
 
-# Determine context paths safely
 HOSTNAME_VAL="$(/usr/bin/hostname)"
 if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
 then
@@ -116,13 +110,10 @@ fi
 SSL_GENERATION_SERVICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SSLGENERATIONSERVICE')"
 SERVER_USER="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SERVERUSER')"
 
-# Safely extract a 4-character lowercase token from SERVER_USER without breaking execution pipelines
 TOKEN="$(/bin/echo "${SERVER_USER}" | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]')"
 
-# Helper transformation: Replace dots with hyphens securely
 url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
 
-# Initialize bucket string tracking
 active_bucket=""
 
 case "${bucket_type}" in
@@ -206,7 +197,6 @@ case "${bucket_type}" in
                 ;;
 esac
 
-# Ensure a bucket parsing rule matched
 if [ -z "${active_bucket}" ]
 then
         log_error "Invalid bucket type specified or failed to build naming topology."
@@ -223,7 +213,6 @@ no_tokens="$(/usr/bin/expr "${no_tokens}" + 1)"
 count="1"
 execution_driver="${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformMoveDatastoreObject.sh"
 
-# Execution handling with wrapped defensive boundaries
 if [ "${mode}" = "local" ]
 then
         "${execution_driver}" "${active_bucket}/${original_object}" "${active_bucket}/${new_object}" "${count}"

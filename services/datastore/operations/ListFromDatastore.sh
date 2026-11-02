@@ -54,7 +54,6 @@
 #set -x
 set -e
 
-# Sourced application root tracking pathway string
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
@@ -63,29 +62,24 @@ else
         exit 1
 fi
 
-# Ensure logging directory structure exists safely
 if [ ! -d "${HOME}/runtime/logs/datastore" ]
 then
         /bin/mkdir -p "${HOME}/runtime/logs/datastore"
 fi
 
-# Define log file destination path
 LOG_FILE="${HOME}/runtime/logs/datastore/ListFromDatastore.log"
 
-# Unified error reporting handler that writes to syslog/log file and stderr
 log_error()
 {
         error_msg="[$(/bin/date '+%Y-%m-%d %H:%M:%S')] ERROR: ${1}"
         /bin/echo "${error_msg}" >&2
         
-        # Safe append to log file if write access is permitted
         if [ -w "${LOG_FILE}" ] || [ -w "$(/usr/bin/dirname "${LOG_FILE}")" ]
         then
                 /bin/echo "${error_msg}" >> "${LOG_FILE}"
         fi
 }
 
-# Input validation
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
         log_error "2 arguments are required and 1 optional argument"
@@ -102,7 +96,6 @@ then
         file_to_list=""
 fi
 
-# Determine context paths safely
 HOSTNAME_VAL="$(/usr/bin/hostname)"
 if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
 then
@@ -116,13 +109,10 @@ fi
 SSL_GENERATION_SERVICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SSLGENERATIONSERVICE')"
 SERVER_USER="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SERVERUSER')"
 
-# Safely extract a 4-character lowercase token from SERVER_USER without breaking execution pipelines
 TOKEN="$(/bin/echo "${SERVER_USER}" | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]')"
 
-# Helper transformation: Replace dots with hyphens securely
 url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
 
-# Initialize bucket string tracking
 active_bucket=""
 
 case "${bucket_type}" in
@@ -206,7 +196,6 @@ case "${bucket_type}" in
                 ;;
 esac
 
-# Ensure a bucket parsing rule matched
 if [ -z "${active_bucket}" ]
 then
         log_error "Invalid bucket type specified or failed to build naming topology."
@@ -215,10 +204,8 @@ fi
 
 DATASTORE_TOOL="$("${HOME}/utilities/config/ExtractBuildStyleValues.sh" "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}')"
 
-# Execution driver pathway mapping
 execution_driver="${HOME}/services/datastore/operations/${DATASTORE_TOOL}/PerformListFromDatastore.sh"
 
-# Run target list operations securely
 if ! "${execution_driver}" "${active_bucket}/${file_to_list}"
 then
         log_error "PerformListFromDatastore.sh driver execution failed returned an error code"

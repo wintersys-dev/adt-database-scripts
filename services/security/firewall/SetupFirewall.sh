@@ -165,12 +165,6 @@ then
         updated="1"
 fi
 
-${HOME}/services/security/firewall/${firewall}/AllowWireguard.sh
-if [ "$?" = "10" ]
-then
-        updated="1"
-fi
-
 ${HOME}/services/security/firewall/${firewall}/AllowBuildMachine.sh
 if [ "$?" = "10" ]
 then

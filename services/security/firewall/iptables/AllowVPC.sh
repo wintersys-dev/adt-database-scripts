@@ -50,12 +50,14 @@ set -e
 HOME="$(/bin/cat /home/homedir.dat)"
 
 SSH_PORT="$(${HOME}/utilities/config/ExtractConfigValue.sh 'SSHPORT')"
+DB_PORT="$(${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT')"
 VPC_IP_RANGE="$(${HOME}/utilities/config/ExtractConfigValue.sh 'VPCIPRANGE')"
 updated="0"
 
 if [ "$(/usr/sbin/iptables --list-rules | /bin/grep "${VPC_IP_RANGE}.*${SSH_PORT}.*ACCEPT")" = "" ]
 then
         /usr/sbin/iptables -A INPUT -s ${VPC_IP_RANGE} -p tcp --dport ${SSH_PORT} -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+        /usr/sbin/iptables -A INPUT -s ${VPC_IP_RANGE} -p tcp --dport ${DB_PORT} -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
         /usr/sbin/iptables -A INPUT -s ${VPC_IP_RANGE} -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
         /usr/sbin/iptables -A INPUT -s ${VPC_IP_RANGE} -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
         /usr/sbin/iptables -A INPUT -s ${VPC_IP_RANGE} -p ICMP --icmp-type 8 -j ACCEPT

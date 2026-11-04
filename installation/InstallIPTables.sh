@@ -59,7 +59,7 @@ export DEBIAN_FRONTEND=noninteractive
 install_command="${manager} ${options} install "
 
 count="0"
-while ( [ ! -f /usr/sbin/iptables ] && [ "${count}" -lt "5" ] )
+while ( [ "`/usr/bin/dpkg -l | /bin/grep -E "iptables-persistent|netfilter-persistent" | /usr/bin/wc -l`" != "2" ] && [ "${count}" -lt "5" ] )
 do
 	if ( [ "${manager}" != "" ] )
 	then

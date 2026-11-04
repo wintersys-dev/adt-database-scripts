@@ -110,7 +110,7 @@ case "${bucket_type}" in
                 active_bucket="$(/bin/echo "${WEBSITE_URL}-config" | /bin/sed 's/\./-/g')-${TOKEN}"
                 ;;
         "backup")
-                active_bucket="${url_hyphenated}-${additional_specifier}"
+                active_bucket="${url_hyphenated}-db-${additional_specifier}"
                 ;;
         "snap")
                 active_bucket="${url_hyphenated}-${DNS_CHOICE}-snap"

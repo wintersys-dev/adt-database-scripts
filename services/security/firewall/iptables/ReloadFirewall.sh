@@ -63,7 +63,7 @@ then
         ${HOME}/utilities/processing/RunServiceCommand.sh netfilter-persistent save
 fi
 
-if [ "$(${HOME}/utilities/processing/RunServiceCommand.sh status iptables.service | /bin/grep 'running' | /bin/grep 'active')" != "" ]
+if ( "$(/usr/bin/lsmod | /bin/grep ip_tables)" != "" ] )
 then
         /bin/touch "${HOME}/runtime/FIREWALL-ACTIVE"
 fi

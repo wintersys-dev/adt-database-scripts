@@ -63,7 +63,7 @@ then
         ${HOME}/utilities/processing/RunServiceCommand.sh netfilter-persistent save
 fi
 
-if ( "$(${HOME}/utilities/processing/RunServiceCommand.sh netfilter-persistent status | /bin/grep "Active:")" != "" ] )
+if [ "$(${HOME}/utilities/processing/RunServiceCommand.sh netfilter-persistent status | /bin/grep "Active:")" != "" ]
 then
         /bin/touch "${HOME}/runtime/FIREWALL-ACTIVE"
 fi

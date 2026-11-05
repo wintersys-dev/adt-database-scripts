@@ -59,7 +59,7 @@ HOME="$(/bin/cat /home/homedir.dat)"
 
 if [ "${updated}" = "1" ] 
 then
-        /usr/sbin/netfilter-persistent restart
+        /usr/sbin/netfilter-persistent reload
         /usr/sbin/netfilter-persistent save
 fi
 

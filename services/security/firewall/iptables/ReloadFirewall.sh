@@ -59,8 +59,8 @@ HOME="$(/bin/cat /home/homedir.dat)"
 
 if [ "${updated}" = "1" ] 
 then
-        /usr/sbin/netfilter-persistent reload
         /usr/sbin/netfilter-persistent save
+        /usr/sbin/netfilter-persistent reload
 fi
 
 if [ "$(${HOME}/utilities/processing/RunServiceCommand.sh netfilter-persistent status | /bin/grep "Active:")" != "" ]

@@ -40,7 +40,7 @@ then
 		/bin/mkdir -p ${HOME}/runtime/datastore_workarea
 	fi
 
-	${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "time_backup_written" "${HOME}/runtime/datastore_workarea" "${periodicity}"
+	${HOME}/services/datastore/operations/GetFromDatastore.sh "backup-db" "time_backup_written" "${HOME}/runtime/datastore_workarea" "${periodicity}"
 
 	if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
 	then

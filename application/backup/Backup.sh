@@ -73,16 +73,16 @@ then
         exit
 fi
 
-${HOME}/services/datastore/operations/MountDatastore.sh "backup" "distributed" "${period}${provider_id}"
+${HOME}/services/datastore/operations/MountDatastore.sh "backup-db" "distributed" "${period}${provider_id}"
 
 if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
 then
         /bin/rm ${HOME}/runtime/datastore_workarea/time_backup_written
 fi
 
-if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "time_backup_written" "${period}${provider_id}"`" != "" ] )
+if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup-db" "time_backup_written" "${period}${provider_id}"`" != "" ] )
 then
-        ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup" "time_backup_written" "${HOME}/runtime/datastore_workarea" "${period}"
+        ${HOME}/services/datastore/operations/GetFromDatastore.sh "backup-db" "time_backup_written" "${HOME}/runtime/datastore_workarea" "${period}"
 fi
 
 if ( [ -f ${HOME}/runtime/datastore_workarea/time_backup_written ] )
@@ -103,7 +103,7 @@ fi
 
 time_backup_written="`/usr/bin/date +%s`"
 /bin/echo "${time_backup_written}" > ${HOME}/runtime/datastore_workarea/time_backup_written
-${HOME}/services/datastore/operations/PutToDatastore.sh "backup" "${HOME}/runtime/datastore_workarea/time_backup_written" "root" "distributed" "no" "${period}${provider_id}"
+${HOME}/services/datastore/operations/PutToDatastore.sh "backup-db" "${HOME}/runtime/datastore_workarea/time_backup_written" "root" "distributed" "no" "${period}${provider_id}"
 
 if ( [ ! -d ${HOME}/backups ] )
 then
@@ -132,12 +132,12 @@ db_backup="`/bin/echo ${WEBSITE_URL} | /bin/sed 's/\./-/g'`-db-${period}${provid
 
 if ( [ -f ${websiteDB} ] )
 then
-        if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${period}${provider_id}"`" != "" ] )
+        if ( [ "`${HOME}/services/datastore/operations/ListFromDatastore.sh "backup-db" "${WEBSITE_NAME}-DB-backup.tar.gz" "${period}${provider_id}"`" != "" ] )
         then
-                ${HOME}/services/datastore/operations/MoveDatastoreObject.sh "backup" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.ARCHIVE.`/usr/bin/date +%F-%Hhr`" "distributed" "${period}${provider_id}"
+                ${HOME}/services/datastore/operations/MoveDatastoreObject.sh "backup-db" "${WEBSITE_NAME}-DB-backup.tar.gz" "${WEBSITE_NAME}-DB-backup.tar.gz.ARCHIVE.`/usr/bin/date +%F-%Hhr`" "distributed" "${period}${provider_id}"
         fi
 
-        /bin/systemd-inhibit --why="Persisting database to datastore" ${HOME}/services/datastore/operations/PutToDatastore.sh "backup" "${websiteDB}" "root" "distributed" "no" "${period}${provider_id}"
+        /bin/systemd-inhibit --why="Persisting database to datastore" ${HOME}/services/datastore/operations/PutToDatastore.sh "backup-db" "${websiteDB}" "root" "distributed" "no" "${period}${provider_id}"
 fi
 
 if ( [ ! -d ${HOME}/backups/verify ] )
@@ -150,7 +150,7 @@ fi
 cd ${HOME}/backups/verify
 
 backup_name="`/bin/echo ${websiteDB} | /usr/bin/awk -F'/' '{print $NF}'`"
-${HOME}/services/datastore/operations/GetFromDatastore.sh  "backup" "${backup_name}" "." "${period}${provider_id}"
+${HOME}/services/datastore/operations/GetFromDatastore.sh  "backup-db" "${backup_name}" "." "${period}${provider_id}"
 
 if ( ( [ ! -f ${HOME}/backups/verify/${backup_name} ] || [ "`/usr/bin/diff ${websiteDB} ${HOME}/backups/verify/${backup_name}`" != "" ] ) && [ "${BUILD_ARCHIVE_CHOICE}" != "virgin" ] )
 then

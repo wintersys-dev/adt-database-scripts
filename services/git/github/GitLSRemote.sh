@@ -1,28 +1,31 @@
 #!/bin/sh
 #: Name:        GitLSRemote.sh
-#: Purpose:     Checks whether a GitHub repository exists and resolves its HEAD reference via git ls-remote.
+#: Purpose:     Checks whether a remote Git repository exists and resolves its SHA-1 HEAD reference via git ls-remote.
 #: Author:      Peter Winter
 #: Date:        17/11/2026
 #: Version:     1.0
 #:
-#: Usage:       GitLSRemote.sh "<repository_ownername>" "<repository_name>" ["<repository_username>"]
+#: Usage:       GitLSRemote.sh "<repository_provider>" "<repository_ownername>" "<repository_name>" ["<repository_username>"]
 #:              GitLSRemote.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] GitHub organisation or individual account namespace
-#:   $2         [Required] Case-sensitive name of the target GitHub repository
-#:   $3         [Optional] GitHub username associated with REPOSITORY_TOKEN (defaults to x-access-token)
+#:   $1         [Required] Hosting vendor identifier (github, gitlab, bitbucket)
+#:   $2         [Required] Organisation, workspace, or individual account namespace
+#:   $3         [Required] Case-sensitive target repository name
+#:   $4         [Optional] Account username associated with REPOSITORY_TOKEN (auto-resolved if omitted)
 #:
 #: Environment:
-#:   REPOSITORY_TOKEN Optional personal access token for private repository authentication
+#:   HOME             Resolved automatically from /home/homedir.dat
+#:   REPOSITORY_TOKEN Optional access token for private repository authentication
 #:
 #: Dependencies:
+#:   - /home/homedir.dat
 #:   - ${HOME}/.netrc (created transiently with mode 600 and removed on exit)
 #:   - External binaries: cat, echo, grep, cut, chmod, rm, git
 #:
 #: Exit Codes:
-#:   0          Remote repository exists and HEAD reference found
-#:   1          Missing required arguments or git ls-remote failure
+#:   0          Remote repository exists and valid 40-char hex HEAD reference emitted on stdout
+#:   1          Missing required arguments, unsupported provider, or git ls-remote / HEAD lookup failure
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -49,6 +52,15 @@ then
         exit 0
 fi
 
+# Resolve the toolkit root directory from the server tracking file
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
 # Validate minimum required positional arguments
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
@@ -61,17 +73,18 @@ repository_ownername="${1}"
 repository_name="${2}"
 repository_username="${3}"
 
+
+if [ -z "${repository_username}" ]
+then
+        repository_username="${default_user}"
+fi
+
 # Construct temporary .netrc with restricted permissions and guaranteed cleanup on exit
 netrc_file="${HOME}/.netrc"
 trap '/bin/rm -f "${netrc_file}"' EXIT
 
 if [ -n "${REPOSITORY_TOKEN}" ]
 then
-        if [ -z "${repository_username}" ]
-        then
-                repository_username="x-access-token"
-        fi
-
         (
                 umask 077
                 /bin/cat << EOF > "${netrc_file}"
@@ -79,13 +92,12 @@ machine github.com
 login ${repository_username}
 password ${REPOSITORY_TOKEN}
 EOF
-        )
-        /bin/chmod 600 "${netrc_file}"
+)
+/bin/chmod 600 "${netrc_file}"
 fi
 
-# Assemble GitHub repository URL from split components
-git_host="github.com"
-repo_url="https://${git_host}/${repository_ownername}/${repository_name}.git"
+# Assemble target repository URL from split components
+repo_url="https://github.com/${repository_ownername}/${repository_name}.git"
 
 # Perform remote repository lookup and capture exit code safely
 set +e
@@ -93,20 +105,20 @@ remote_refs="$(/usr/bin/git ls-remote "${repo_url}" 2>/dev/null)"
 error_code="$?"
 set -e
 
-/bin/rm -f "${netrc_file}"
-
 if [ "${error_code}" -ne 0 ]
 then
-        /bin/echo "Error: git ls-remote exited with error code ${error_code}." >&2
-        exit 1
+        /bin/echo "none"
+        exit 0
 fi
 
-if ! /bin/echo "${remote_refs}" | /usr/bin/grep -q 'HEAD'
+# Check for a valid 40-character lowercase hex SHA-1 HEAD reference
+head_ref="$(printf '%s\n' "${remote_refs}" | /usr/bin/grep -E '^[0-9a-f]{40}[[:space:]]+HEAD$' || true)"
+
+if [ -n "${head_ref}" ]
 then
-        /bin/echo "Error: No HEAD reference found for ${repository_ownername}/${repository_name} on GitHub." >&2
-        exit 1
+        /bin/echo "full"
+else
+        /bin/echo "empty"
 fi
-
-/bin/echo "${remote_refs}" | /usr/bin/grep 'HEAD'
 
 exit 0

@@ -13,17 +13,14 @@
 #:   $2         [Required] Target repository name to create
 #:
 #: Environment:
-#:   BUILD_HOME       Resolved automatically from /home/buildhome.dat
 #:   REPOSITORY_TOKEN Bitbucket Workspace/Repository Access Token with repository:write scope
 #:
 #: Dependencies:
-#:   - /home/buildhome.dat
-#:   - LogStatusMessages.sh
-#:   - External binaries: cat, echo, grep, cut, sed, tr, jq, curl
+#:   - External binaries: echo, grep, cut, sed, tr, jq, curl
 #:
 #: Exit Codes:
 #:   0          Private Bitbucket repository created successfully
-#:   1          Missing arguments, missing token/config, JSON encoding failure, or non-2xx API status
+#:   1          Missing arguments, missing token, JSON encoding failure, or non-2xx API status
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -50,32 +47,17 @@ then
         exit 0
 fi
 
-# Resolve the toolkit root directory from the system tracking file
-if [ -r /home/buildhome.dat ]
-then
-        BUILD_HOME="$(/bin/cat /home/buildhome.dat)"
-else
-        /bin/echo "Application root configuration file missing at /home/buildhome.dat" >&2
-        exit 1
-fi
-
-# Route status log entries to the centralized logging utility
-status()
-{
-        "${BUILD_HOME}/helpers/services/LogStatusMessages.sh" "${1}" 2>/dev/null
-}
-
 # Validate required positional arguments and authentication token
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        status "Error: Both workspace/username and repository name arguments are required."
-        status "Usage: $0 <repository_username> <repository_name>"
+        /bin/echo "Error: Both workspace/username and repository name arguments are required." >&2
+        /bin/echo "Usage: $0 <repository_username> <repository_name>" >&2
         exit 1
 fi
 
 if [ -z "${REPOSITORY_TOKEN}" ]
 then
-        status "Error: REPOSITORY_TOKEN environment variable is not set."
+        /bin/echo "Error: REPOSITORY_TOKEN environment variable is not set." >&2
         exit 1
 fi
 
@@ -88,7 +70,7 @@ repo_payload="$(/usr/bin/jq -n -c --arg name "${repository_name}" '{ scm: "git",
 
 if [ -z "${repo_payload}" ]
 then
-        status "Error: Failed to construct valid repository JSON payload."
+        /bin/echo "Error: Failed to construct valid repository JSON payload." >&2
         exit 1
 fi
 
@@ -106,7 +88,7 @@ set -e
 
 if [ "${curl_status}" -ne 0 ]
 then
-        status "Error: curl request to ${endpoint} failed with exit code ${curl_status}."
+        /bin/echo "Error: curl request to ${endpoint} failed with exit code ${curl_status}." >&2
         exit 1
 fi
 
@@ -117,38 +99,39 @@ RESPONSE_BODY=$(/bin/echo "${RESPONSE}" | /usr/bin/sed '/HTTP_STATUS:/d')
 # Evaluate HTTP status code and handle API errors explicitly
 case "${HTTP_CODE}" in
         200|201)
-                status "Success! Private Bitbucket repository '${repository_username}/${repo_slug}' created."
+                /bin/echo "Success! Private Bitbucket repository '${repository_username}/${repo_slug}' created."
                 ;;
         400)
-                status "Error 400: Bad Request. Repository '${repo_slug}' may already exist or payload is invalid."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error 400: Bad Request. Repository '${repo_slug}' may already exist or payload is invalid." >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}" >&2
                 exit 1
                 ;;
         401)
-                status "Error 401: Unauthorized. Check your REPOSITORY_TOKEN."
+                /bin/echo "Error 401: Unauthorized. Check your REPOSITORY_TOKEN." >&2
                 exit 1
                 ;;
         403)
-                status "Error 403: Forbidden. Missing repository creation permissions."
+                /bin/echo "Error 403: Forbidden. Missing repository creation permissions." >&2
                 exit 1
                 ;;
         404)
-                status "Error 404: Not Found. Workspace or username '${repository_username}' does not exist."
+                /bin/echo "Error 404: Not Found. Workspace or username '${repository_username}' does not exist." >&2
                 exit 1
                 ;;
         429)
-                status "Error 429: Rate Limit Exceeded."
+                /bin/echo "Error 429: Rate Limit Exceeded." >&2
                 exit 1
                 ;;
         5*)
-                status "Error ${HTTP_CODE}: Bitbucket Server Error."
+                /bin/echo "Error ${HTTP_CODE}: Bitbucket Server Error." >&2
                 exit 1
                 ;;
         *)
-                status "Error ${HTTP_CODE}: Unexpected response."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error ${HTTP_CODE}: Unexpected response." >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}" >&2
                 exit 1
                 ;;
 esac
 
 exit 0
+

@@ -17,8 +17,6 @@
 #:   REPOSITORY_TOKEN GitLab personal access token with api scope permissions
 #:
 #: Dependencies:
-#:   - /home/buildhome.dat
-#:   - LogStatusMessages.sh
 #:   - External binaries: cat, echo, grep, cut, sed, jq, curl
 #:
 #: Exit Codes:
@@ -40,7 +38,6 @@
 ####################################################################################
 
 # Exit immediately if any command exits with a non-zero status
-#set -x
 set -e
 
 # Render self-extracting help documentation when -h or --help is supplied
@@ -50,32 +47,18 @@ then
         exit 0
 fi
 
-# Resolve the toolkit root directory from the system tracking file
-if [ -r /home/buildhome.dat ]
-then
-        BUILD_HOME="$(/bin/cat /home/buildhome.dat)"
-else
-        /bin/echo "Application root configuration file missing at /home/buildhome.dat" >&2
-        exit 1
-fi
-
-# Route status log entries to the centralized logging utility
-status()
-{
-        "${BUILD_HOME}/helpers/services/LogStatusMessages.sh" "${1}" 2>/dev/null
-}
 
 # Validate required positional arguments and authentication token
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        status "Error: Both repository username and repository name arguments are required."
-        status "Usage: $0 <repository_username> <repository_name>"
+        /bin/echo "Error: Both repository username and repository name arguments are required." >&2
+        /bin/echo "Usage: $0 <repository_username> <repository_name>" >&2
         exit 1
 fi
 
 if [ -z "${REPOSITORY_TOKEN}" ]
 then
-        status "Error: REPOSITORY_TOKEN environment variable is not set."
+        /bin/echo "Error: REPOSITORY_TOKEN environment variable is not set." >&2
         exit 1
 fi
 
@@ -87,7 +70,7 @@ repo_payload="$(/usr/bin/jq -n -c --arg name "${repository_name}" '{ name: $name
 
 if [ -z "${repo_payload}" ]
 then
-        status "Error: Failed to construct valid repository JSON payload."
+        /bin/echo "Error: Failed to construct valid repository JSON payload." >&2
         exit 1
 fi
 
@@ -104,7 +87,7 @@ set -e
 
 if [ "${curl_status}" -ne 0 ]
 then
-        status "Error: curl request to ${endpoint} failed with exit code ${curl_status}."
+        /bin/echo "Error: curl request to ${endpoint} failed with exit code ${curl_status}." >&2
         exit 1
 fi
 
@@ -115,37 +98,37 @@ RESPONSE_BODY=$(/bin/echo "${RESPONSE}" | /usr/bin/sed '/HTTP_STATUS:/d')
 # Evaluate HTTP status code and handle API errors explicitly
 case "${HTTP_CODE}" in
         200|201)
-                status "Success! Private GitLab repository '${repository_username}/${repository_name}' created."
+                /bin/echo "Success! Private GitLab repository '${repository_username}/${repository_name}' created."
                 ;;
         400)
-                status "Error 400: Bad Request. Repository '${repository_name}' may already exist or payload is invalid."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error 400: Bad Request. Repository '${repository_name}' may already exist or payload is invalid." >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}" >&2
                 exit 1
                 ;;
         401)
-                status "Error 401: Unauthorized. Check your REPOSITORY_TOKEN."
+                /bin/echo "Error 401: Unauthorized. Check your REPOSITORY_TOKEN." >&2
                 exit 1
                 ;;
         403)
-                status "Error 403: Forbidden. Missing project creation permissions."
+                /bin/echo "Error 403: Forbidden. Missing project creation permissions." >&2
                 exit 1
                 ;;
         422)
-                status "Error 422: Unprocessable Entity. Check project parameters."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error 422: Unprocessable Entity. Check project parameters." >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}" >&2
                 exit 1
                 ;;
         429)
-                status "Error 429: Rate Limit Exceeded."
+                /bin/echo "Error 429: Rate Limit Exceeded." >&2
                 exit 1
                 ;;
         5*)
-                status "Error ${HTTP_CODE}: GitLab Server Error."
+                /bin/echo "Error ${HTTP_CODE}: GitLab Server Error." >&2
                 exit 1
                 ;;
         *)
-                status "Error ${HTTP_CODE}: Unexpected response."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error ${HTTP_CODE}: Unexpected response." >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}" >&2
                 exit 1
                 ;;
 esac

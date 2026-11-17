@@ -133,9 +133,15 @@ ${HOME}/services/git/PushToRepository.sh ${APPLICATION_REPOSITORY_PROVIDER} ${AP
 error_code="$?"
 unset REPOSITORY_TOKEN
 
+if [ -d ${HOME}/backups/${baseline_name} ] )
+then
+        /bin/rm -r ${HOME}/backups/${baseline_name}
+fi
+
 if ( [ "${error_code}" != "0" ] )
 then
         /bin/echo "Failed to generate baseline...is your application repository authorisation token valid and set correctly?"
+        exit 1
 else
         /bin/echo ""
         /bin/echo "========================================================================================================================================="

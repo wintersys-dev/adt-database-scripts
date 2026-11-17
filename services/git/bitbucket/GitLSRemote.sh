@@ -1,6 +1,6 @@
 #!/bin/sh
 #: Name:        GitLSRemote.sh
-#: Purpose:     Checks whether a Bitbucket repository exists and resolves its HEAD reference via git ls-remote.
+#: Purpose:     Probes a remote Bitbucket repository and classifies its state as "full", "empty", or "none".
 #: Author:      Peter Winter
 #: Date:        17/11/2026
 #: Version:     1.0
@@ -9,7 +9,7 @@
 #:              GitLSRemote.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] Bitbucket workspace or account namespace
+#:   $1         [Required] Bitbucket workspace or individual account namespace
 #:   $2         [Required] Case-sensitive slug/name of the target Bitbucket repository
 #:   $3         [Optional] Bitbucket username associated with REPOSITORY_TOKEN (defaults to x-token-auth)
 #:
@@ -23,8 +23,8 @@
 #:   - External binaries: cat, echo, grep, cut, chmod, rm, git
 #:
 #: Exit Codes:
-#:   0          Remote repository exists and HEAD reference found
-#:   1          Missing required arguments, missing config file, or git ls-remote failure
+#:   0          Repository probe completed; emits "full", "empty", or "none" on stdout
+#:   1          Missing required arguments or unreadable /home/homedir.dat
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -72,17 +72,18 @@ repository_ownername="${1}"
 repository_name="${2}"
 repository_username="${3}"
 
+# Default to Bitbucket's standard token login identifier if no explicit username was provided
+if [ -z "${repository_username}" ]
+then
+        repository_username="x-token-auth"
+fi
+
 # Construct temporary .netrc with restricted permissions and guaranteed cleanup on exit
 netrc_file="${HOME}/.netrc"
 trap '/bin/rm -f "${netrc_file}"' EXIT
 
 if [ -n "${REPOSITORY_TOKEN}" ]
 then
-        if [ -z "${repository_username}" ]
-        then
-                repository_username="x-token-auth"
-        fi
-
         (
                 umask 077
                 /bin/cat << EOF > "${netrc_file}"
@@ -94,28 +95,31 @@ EOF
         /bin/chmod 600 "${netrc_file}"
 fi
 
-# Assemble Bitbucket repository URL from split components
+# Assemble target Bitbucket repository URL from split components
 git_host="bitbucket.org"
 repo_url="https://${git_host}/${repository_ownername}/${repository_name}.git"
 
-# Perform remote repository lookup and capture exit code safely
+# Perform non-interactive remote repository lookup and capture exit code safely
 set +e
-remote_refs="$(/usr/bin/git ls-remote "${repo_url}" 2>/dev/null)"
+remote_refs="$(GIT_TERMINAL_PROMPT=0 /usr/bin/git ls-remote "${repo_url}" 2>/dev/null)"
 error_code="$?"
 set -e
 
 if [ "${error_code}" -ne 0 ]
 then
-        /bin/echo "Error: git ls-remote exited with error code ${error_code}." >&2
-        exit 1
+        /bin/echo "none"
+        exit 0
 fi
 
-if ! printf '%s\n' "${remote_refs}" | /usr/bin/grep -q 'HEAD'
+# Check for a valid 40-character lowercase hex SHA-1 HEAD reference
+head_ref="$(printf '%s\n' "${remote_refs}" | /usr/bin/grep -E '^[0-9a-f]{40}[[:space:]]+HEAD$' || true)"
+
+if [ -n "${head_ref}" ]
 then
-        /bin/echo "Error: No HEAD reference found for ${repository_ownername}/${repository_name} on Bitbucket." >&2
-        exit 1
+        /bin/echo "full"
+else
+        /bin/echo "empty"
 fi
-
-printf '%s\n' "${remote_refs}" | /usr/bin/grep 'HEAD'
 
 exit 0
+

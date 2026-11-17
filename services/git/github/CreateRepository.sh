@@ -13,17 +13,16 @@
 #:   $2         [Required] Target repository name to create
 #:
 #: Environment:
-#:   BUILD_HOME       Resolved automatically from /home/buildhome.dat
+#:   HOME       Resolved automatically from /home/homedir.dat
 #:   REPOSITORY_TOKEN Personal access token with repo creation permissions
 #:
 #: Dependencies:
-#:   - /home/buildhome.dat
-#:   - LogStatusMessages.sh
+#:   - /home/homedir.dat
 #:   - External binaries: cat, echo, grep, cut, sed, jq, curl
 #:
 #: Exit Codes:
 #:   0          Private GitHub repository created successfully
-#:   1          Missing arguments, missing token/config, JSON encoding failure, or non-2xx API status
+#:   1          Missing arguments, missing token/config, JSON encoding failure, or non-2xx API /bin/echo
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -39,8 +38,7 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ####################################################################################
 
-# Exit immediately if any command exits with a non-zero status
-#set -x
+# Exit immediately if any command exits with a non-zero /bin/echo
 set -e
 
 # Render self-extracting help documentation when -h or --help is supplied
@@ -51,31 +49,26 @@ then
 fi
 
 # Resolve the toolkit root directory from the system tracking file
-if [ -r /home/buildhome.dat ]
+if [ -r /home/homedir.dat ]
 then
-        BUILD_HOME="$(/bin/cat /home/buildhome.dat)"
+        HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/buildhome.dat" >&2
+        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-# Route status log entries to the centralized logging utility
-status()
-{
-        "${BUILD_HOME}/helpers/services/LogStatusMessages.sh" "${1}" 2>/dev/null
-}
 
 # Validate required positional arguments and authentication token
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        status "Error: Both repository username and repository name arguments are required."
-        status "Usage: $0 <repository_username> <repository_name>"
+        /bin/echo "Error: Both repository username and repository name arguments are required."  >&2
+        /bin/echo "Usage: $0 <repository_username> <repository_name>"  >&2
         exit 1
 fi
 
 if [ -z "${REPOSITORY_TOKEN}" ]
 then
-        status "Error: REPOSITORY_TOKEN environment variable is not set."
+        /bin/echo "Error: REPOSITORY_TOKEN environment variable is not set."  >&2
         exit 1
 fi
 
@@ -87,7 +80,7 @@ repo_payload="$(/usr/bin/jq -n -c --arg name "${repository_name}" '{ name: $name
 
 if [ -z "${repo_payload}" ]
 then
-        status "Error: Failed to construct valid repository JSON payload."
+        /bin/echo "Error: Failed to construct valid repository JSON payload."  >&2
         exit 1
 fi
 
@@ -105,48 +98,47 @@ set -e
 
 if [ "${curl_status}" -ne 0 ]
 then
-        status "Error: curl request to ${endpoint} failed with exit code ${curl_status}."
+        /bin/echo "Error: curl request to ${endpoint} failed with exit code ${curl_status}."  >&2
         exit 1
 fi
 
-# Separate the HTTP status code and JSON response body
+# Separate the HTTP /bin/echo code and JSON response body
 HTTP_CODE=$(/bin/echo "${RESPONSE}" | /usr/bin/grep "HTTP_STATUS:" | /usr/bin/cut -d':' -f2)
 RESPONSE_BODY=$(/bin/echo "${RESPONSE}" | /usr/bin/sed '/HTTP_STATUS:/d')
 
-# Evaluate HTTP status code and handle API errors explicitly
 case "${HTTP_CODE}" in
         200|201)
-                status "Success! Private GitHub repository '${repository_username}/${repository_name}' created."
+                /bin/echo "Success! Private GitHub repository '${repository_username}/${repository_name}' created."
                 ;;
         400)
-                status "Error 400: Bad Request. Check your payload syntax."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error 400: Bad Request. Check your payload syntax."  >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}"  >&2
                 exit 1
                 ;;
         401)
-                status "Error 401: Unauthorized. Check your REPOSITORY_TOKEN."
+                /bin/echo "Error 401: Unauthorized. Check your REPOSITORY_TOKEN."  >&2
                 exit 1
                 ;;
         403)
-                status "Error 403: Forbidden. Missing repository creation permissions."
+                /bin/echo "Error 403: Forbidden. Missing repository creation permissions."  >&2
                 exit 1
                 ;;
         422)
-                status "Error 422: Unprocessable Entity. Repository '${repository_name}' may already exist."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error 422: Unprocessable Entity. Repository '${repository_name}' may already exist."  >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}"  >&2
                 exit 1
                 ;;
         429)
-                status "Error 429: Rate Limit Exceeded."
+                /bin/echo "Error 429: Rate Limit Exceeded."  >&2
                 exit 1
                 ;;
         5*)
-                status "Error ${HTTP_CODE}: GitHub Server Error."
+                /bin/echo "Error ${HTTP_CODE}: GitHub Server Error."  >&2
                 exit 1
                 ;;
         *)
-                status "Error ${HTTP_CODE}: Unexpected response."
-                status "API Response: ${RESPONSE_BODY}"
+                /bin/echo "Error ${HTTP_CODE}: Unexpected response."  >&2
+                /bin/echo "API Response: ${RESPONSE_BODY}"  >&2
                 exit 1
                 ;;
 esac

@@ -17,7 +17,7 @@
 #: Dependencies:
 #:   - /home/homedir.dat
 #:   - ${HOME}/utilities/config/ExtractConfigValue.sh
-#:   - ${HOME}/services/git/GitLSRemote.sh
+#:   - ${HOME}/services/git/ListRepository.sh
 #:   - ${HOME}/services/git/CreateRepository.sh
 #:   - ${HOME}/services/git/PushToRepository.sh
 #:   - ${HOME}/services/database/BackupDatabase.sh
@@ -108,7 +108,7 @@ WEBSITE_DISPLAY_NAME_LOWER="$(/bin/echo "${WEBSITE_DISPLAY_NAME}" | /bin/sed 's/
 
 APPLICATION_REPOSITORY_PROVIDER="$("${extract_cfg}" 'APPLICATIONREPOSITORYPROVIDER')"
 APPLICATION_REPOSITORY_USERNAME="$("${extract_cfg}" 'APPLICATIONREPOSITORYUSERNAME')"
-APPLICATION_REPOSITORY_TOKEN="$("${extract_cfg}" 'APPLICATIONREPOSITORYTOKEN')"
+#APPLICATION_REPOSITORY_TOKEN="$("${extract_cfg}" 'APPLICATIONREPOSITORYTOKEN')"
 APPLICATION_REPOSITORY_OWNER="$("${extract_cfg}" 'APPLICATIONREPOSITORYOWNER')"
 
 # Prepare clean staging directory for the baseline dump
@@ -128,7 +128,7 @@ fi
 # Verify or provision the target remote baseline repository
 export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
 
-repo_status="$("${HOME}/services/git/GitLSRemote.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
+repo_status="$("${HOME}/services/git/GitListRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
 
 case "${repo_status}" in
         none)
@@ -158,7 +158,7 @@ case "${repo_status}" in
                         # Allow remote provider API propagation cooldown
                         /bin/sleep 10
 
-                        verify_status="$("${HOME}/services/git/GitLSRemote.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
+                        verify_status="$("${HOME}/services/git/ListRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
                         if [ "${verify_status}" = "empty" ]
                         then
                                 /bin/echo "Repository (${target_repo}) successfully created."

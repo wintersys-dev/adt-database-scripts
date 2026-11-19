@@ -1,29 +1,30 @@
 #!/bin/sh
 #: Name:        CreateRepository.sh
-#: Purpose:     Validates and orchestrates repository creation requests to the designated Git provider sub-driver.
+#: Purpose:     Orchestrates private repository creation across configured Git providers.
 #: Author:      Peter Winter
-#: Date:        17/11/2026
+#: Date:        18/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CreateRepository.sh "<repository_provider>" "<repository_name>" ["<repository_username>"]
+#: Usage:       CreateRepository.sh [repository_provider] [repository_username] <repository_name>
 #:              CreateRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] Hosting vendor identifier (e.g. github, gitlab, bitbucket)
-#:   $2         [Required] Target repository name to create
-#:   $3         [Optional] Administrative account username or workspace namespace for authentication
+#:   $1         [Optional] The Git provider name (falls back to APPLICATIONREPOSITORYPROVIDER).
+#:   $2         [Optional] The workspace or repository username (falls back to APPLICATIONREPOSITORYUSERNAME).
+#:   $3         [Required] The name/slug of the repository to create.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
 #:
 #: Dependencies:
 #:   - /home/homedir.dat
-#:   - ${HOME}/services/git/<repository_provider>/CreateRepository.sh
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/git/${repository_provider}/CreateRepository.sh
 #:   - External binaries: cat, echo, grep, cut
 #:
 #: Exit Codes:
-#:   0          Repository created successfully via provider sub-driver
-#:   1          Missing required arguments, missing config/provider script, or sub-driver failure
+#:   0          Repository creation delegated and completed cleanly by provider sub-driver
+#:   1          Missing arguments, layout faults, missing/non-executable sub-driver, or creation failure
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -59,17 +60,19 @@ else
         exit 1
 fi
 
-# Validate minimum required positional arguments
-if [ -z "${1}" ] || [ -z "${2}" ]
+set +e
+repository_provider="${1:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')}"
+repository_username="${2:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')}"
+repository_name="${3}"
+set -e
+
+# Verify that all required values are set from either arguments or config
+if [ -z "${repository_provider}" ] || [ -z "${repository_username}" ] || [ -z "${repository_name}" ]
 then
-        /bin/echo "Error: 2 arguments are required and 1 optional argument." >&2
-        /bin/echo "Usage: $0 <repository_provider> <repository_name> [repository_username]" >&2
+        /bin/echo "Error: Repository provider, repository username, or repository name could not be determined from arguments or config." >&2
+        /bin/echo "Usage: $0 [repository_provider] [repository_username] <repository_name>" >&2
         exit 1
 fi
-
-repository_provider="${1}"
-repository_name="${2}"
-repository_username="${3}"
 
 # Verify provider sub-driver script exists and is executable before delegating
 provider_script="${HOME}/services/git/${repository_provider}/CreateRepository.sh"
@@ -97,6 +100,8 @@ then
         /bin/echo "Error: ${provider_script} exited with error code ${exit_code}." >&2
         exit 1
 fi
+
+exit 0
 
 exit 0
 

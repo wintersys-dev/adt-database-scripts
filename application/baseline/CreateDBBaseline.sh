@@ -1,12 +1,12 @@
 #!/bin/sh
-#: Name:        CreateDatabaseBaseline.sh
+#: Name:        CreateDBBaseline.sh
 #: Purpose:     Exports the active database, strips custom branding, and pushes a clean baseline to Git.
 #: Author:      Peter Winter
 #: Date:        17/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CreateDatabaseBaseline.sh ["<baseline_name>"]
-#:              CreateDatabaseBaseline.sh [-h|--help]
+#: Usage:       CreateDBBaseline.sh ["<baseline_name>"]
+#:              CreateDBBaseline.sh [-h|--help]
 #:
 #: Parameters:
 #:   $1         [Optional] Unique baseline identifier (prompts interactively if omitted)
@@ -62,20 +62,17 @@ else
         exit 1
 fi
 
-# Ensure exported credentials are always cleared on script exit
-trap 'unset REPOSITORY_TOKEN' EXIT
-
 # Extract database credentials 
 DB_U="$(${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME')"
 DB_P="$(${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD')"
 DB_N="$(${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME')"
-DB_PORT="$(${HOME}/utilities/config/ExtractConfigValue.sh'DBPORT')"
+DB_PORT="$(${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT')"
 
 # Determine interactive vs. non-interactive baseline identifier
 if [ -z "${1}" ]
 then
         interactive_mode="1"
-        application_type="$("${extract_cfg}" 'APPLICATION')"
+        application_type="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATION')"
         /bin/echo "Your application type is set to: ${application_type}"
         /bin/echo "Please make very sure this is correct for your application otherwise things will break."
         /bin/echo "Press <enter> when you are sure:"
@@ -98,18 +95,17 @@ target_repo="${baseline_name}-db-baseline"
 /bin/echo "Creating baseline of your database (${target_repo})..."
 
 # Extract website and repository configuration values
-WEBSITE_URL="$("${extract_cfg}" 'WEBSITEURL')"
-WEBSITE_DISPLAY_NAME="$("${extract_cfg}" 'WEBSITEDISPLAYNAME' | /bin/sed 's/_/ /g')"
+WEBSITE_URL="$(${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL')"
+WEBSITE_DISPLAY_NAME="$(${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEDISPLAYNAME' | /bin/sed 's/_/ /g')"
 
 WEBSITE_NAME="$(/bin/echo "${WEBSITE_URL}" | /usr/bin/awk -F'.' '{print $2}')"
 ROOT_DOMAIN="$(/bin/echo "${WEBSITE_URL}" | /usr/bin/cut -d'.' -f2-)"
 WEBSITE_DISPLAY_NAME_UPPER="$(/bin/echo "${WEBSITE_DISPLAY_NAME}" | /bin/sed 's/_/ /g' | /usr/bin/tr '[:lower:]' '[:upper:]')"
 WEBSITE_DISPLAY_NAME_LOWER="$(/bin/echo "${WEBSITE_DISPLAY_NAME}" | /bin/sed 's/_/ /g' | /usr/bin/tr '[:upper:]' '[:lower:]')"
 
-APPLICATION_REPOSITORY_PROVIDER="$("${extract_cfg}" 'APPLICATIONREPOSITORYPROVIDER')"
-APPLICATION_REPOSITORY_USERNAME="$("${extract_cfg}" 'APPLICATIONREPOSITORYUSERNAME')"
-#APPLICATION_REPOSITORY_TOKEN="$("${extract_cfg}" 'APPLICATIONREPOSITORYTOKEN')"
-APPLICATION_REPOSITORY_OWNER="$("${extract_cfg}" 'APPLICATIONREPOSITORYOWNER')"
+APPLICATION_REPOSITORY_PROVIDER="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')"
+APPLICATION_REPOSITORY_USERNAME="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')"
+APPLICATION_REPOSITORY_OWNER="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYOWNER')"
 
 # Prepare clean staging directory for the baseline dump
 backup_dir="${HOME}/backups/${baseline_name}"
@@ -125,11 +121,7 @@ then
         /bin/rm -rf "${HOME}/.git"
 fi
 
-# Verify or provision the target remote baseline repository
-export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
-
-repo_status="$("${HOME}/services/git/GitListRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
-
+repo_status="$("${HOME}/services/git/ListRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}")"
 case "${repo_status}" in
         none)
                 create_repo="0"
@@ -143,7 +135,6 @@ case "${repo_status}" in
                                         ;;
                                 *)
                                         /bin/echo "Aborting baseline creation."
-                                        unset REPOSITORY_TOKEN
                                         exit 0
                                         ;;
                         esac
@@ -154,7 +145,9 @@ case "${repo_status}" in
                 if [ "${create_repo}" = "1" ]
                 then
                         /bin/echo "Creating new repository (${target_repo})..."
-                        "${HOME}/services/git/CreateRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}"
+
+                        "${HOME}/services/git/CreateRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}"
+
                         # Allow remote provider API propagation cooldown
                         /bin/sleep 10
 
@@ -169,7 +162,6 @@ case "${repo_status}" in
                                 fi
                         else
                                 /bin/echo "Error: Repository (${target_repo}) was not created or is unreachable. Exiting." >&2
-                                unset REPOSITORY_TOKEN
                                 exit 1
                         fi
                 fi
@@ -184,28 +176,22 @@ case "${repo_status}" in
                 ;;
         full)
                 /bin/echo "Error: Repository (${target_repo}) already exists and is not empty. Please empty, delete, or rename it before rerunning." >&2
-                unset REPOSITORY_TOKEN
                 exit 1
                 ;;
         *)
                 /bin/echo "Error: Unexpected repository status (${repo_status}) returned for ${target_repo}." >&2
-                unset REPOSITORY_TOKEN
                 exit 1
                 ;;
 esac
 
-unset REPOSITORY_TOKEN
 
 "${HOME}/services/database/BackupDatabase.sh"
 "${HOME}/application/branding/RemoveApplicationBranding.sh"
 
-# Push baseline artifacts to the remote Git repository
-export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
 set +e
-"${HOME}/services/git/PushToRepository.sh" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${target_repo}" "${APPLICATION_REPOSITORY_USERNAME}"
+"${HOME}/services/git/PushToRepository.sh" "${backup_dir}" "${target_repo}" "main" "${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}" "${APPLICATION_REPOSITORY_USERNAME}"
 error_code="$?"
 set -e
-unset REPOSITORY_TOKEN
 
 # Clean up temporary staging workspace
 cd "${HOME}"

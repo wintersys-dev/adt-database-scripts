@@ -1,30 +1,33 @@
 #!/bin/sh
 #: Name:        PushToRepository.sh
-#: Purpose:     Validates and orchestrates baseline Git push requests to the designated Git provider sub-driver.
+#: Purpose:     Orchestrates repository push operations across configured Git providers.
 #: Author:      Peter Winter
-#: Date:        17/11/2026
+#: Date:        18/11/2026
 #: Version:     1.0
 #:
-#: Usage:       PushToRepository.sh "<repository_provider>" "<repository_owner>" "<repository_name>" ["<repository_username>"]
+#: Usage:       PushToRepository.sh <source_directory> <repository_name> [repository_branch] [repository_provider] [repository_owner] [repository_username]
 #:              PushToRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] Hosting vendor identifier (e.g. github, gitlab, bitbucket)
-#:   $2         [Required] Organisation, workspace, or profile namespace account name
-#:   $3         [Required] Case-sensitive target repository name
-#:   $4         [Optional] Account username or credential identifier for authenticated pushes
+#:   $1         [Required] Local source directory containing content to push.
+#:   $2         [Required] The name/slug of the target repository.
+#:   $3         [Optional] Target branch name (defaults to "main").
+#:   $4         [Optional] The Git provider name (falls back to APPLICATIONREPOSITORYPROVIDER).
+#:   $5         [Optional] The workspace or repository owner name (falls back to APPLICATIONREPOSITORYOWNER).
+#:   $6         [Optional] The repository authentication username (falls back to APPLICATIONREPOSITORYUSERNAME).
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
 #:
 #: Dependencies:
 #:   - /home/homedir.dat
-#:   - ${HOME}/services/git/<repository_provider>/PushToRepository.sh
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/git/${repository_provider}/PushToRepository.sh
 #:   - External binaries: cat, echo, grep, cut
 #:
 #: Exit Codes:
-#:   0          Baseline commit pushed successfully via provider sub-driver
-#:   1          Missing required arguments, missing config/provider script, or sub-driver failure
+#:   0          Repository push delegated and completed cleanly by provider sub-driver
+#:   1          Missing arguments, invalid directory, layout faults, missing/non-executable sub-driver, or push failure
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -41,7 +44,6 @@
 ####################################################################################
 
 # Exit immediately if any command exits with a non-zero status
-#set -x
 set -e
 
 # Render self-extracting help documentation when -h or --help is supplied
@@ -60,18 +62,28 @@ else
         exit 1
 fi
 
-# Validate minimum required positional arguments
-if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ]
+set +e
+source_directory="${1}"
+repository_name="${2}"
+repository_branch="${3:-main}"
+repository_provider="${4:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')}"
+repository_owner="${5:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYOWNER')}"
+repository_username="${6:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')}"
+set -e
+
+# Verify that all required values are set from either arguments or config
+if [ -z "${source_directory}" ] || [ -z "${repository_name}" ] || [ -z "${repository_branch}" ] || [ -z "${repository_provider}" ] || [ -z "${repository_owner}" ] || [ -z "${repository_username}" ]
 then
-        /bin/echo "Error: 3 arguments are required and 1 optional argument." >&2
-        /bin/echo "Usage: $0 <repository_provider> <repository_owner> <repository_name> [repository_username]" >&2
+        /bin/echo "Error: Source directory, repository name, branch, provider, owner, or username could not be determined from arguments or config." >&2
+        /bin/echo "Usage: $0 <source_directory> <repository_name> [repository_branch] [repository_provider] [repository_owner] [repository_username]" >&2
         exit 1
 fi
 
-repository_provider="${1}"
-repository_owner="${2}"
-repository_name="${3}"
-repository_username="${4}"
+if [ ! -d "${source_directory}" ]
+then
+        /bin/echo "Error: Source directory not found at ${source_directory}." >&2
+        exit 1
+fi
 
 # Verify provider sub-driver script exists and is executable before delegating
 provider_script="${HOME}/services/git/${repository_provider}/PushToRepository.sh"
@@ -90,7 +102,7 @@ fi
 
 # Delegate push operation to the provider-specific sub-driver
 set +e
-"${provider_script}" "${repository_owner}" "${repository_name}" "${repository_username}"
+"${provider_script}" "${source_directory}" "${repository_name}" "${repository_branch}" "${repository_owner}" "${repository_username}"
 exit_code="$?"
 set -e
 

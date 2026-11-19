@@ -1,31 +1,33 @@
 #!/bin/sh
 #: Name:        PushToRepository.sh
-#: Purpose:     Initializes a local Git workspace, commits baseline files, and pushes to a GitHub repository.
+#: Purpose:     Pushes a local directory with content to a GitHub repository.
 #: Author:      Peter Winter
-#: Date:        17/11/2026
+#: Date:        18/11/2026
 #: Version:     1.0
 #:
-#: Usage:       PushToRepository.sh "<repository_owner>" "<repository_name>" ["<repository_username>"]
+#: Usage:       PushToRepository.sh <source_directory> <repository_name> [branch] [repository_ownername] [repository_username]
 #:              PushToRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] GitHub organisation or individual account namespace
-#:   $2         [Required] Case-sensitive target repository name
-#:   $3         [Optional] GitHub username associated with REPOSITORY_TOKEN (defaults to x-access-token)
+#:   $1         [Required] Local source directory containing content to push.
+#:   $2         [Required] The name/slug of the existing target repository.
+#:   $3         [Optional] Target branch name (defaults to "main").
+#:   $4         [Optional] The GitHub organisation or account owner name (falls back to APPLICATIONREPOSITORYOWNER).
+#:   $5         [Optional] The GitHub authentication username (falls back to APPLICATIONREPOSITORYUSERNAME).
 #:
 #: Environment:
-#:   HOME             Resolved automatically from /home/homedir.dat
-#:   REPOSITORY_TOKEN Personal access token exported in the shell for authentication
+#:   HOME       Resolved automatically from /home/homedir.dat
 #:
 #: Dependencies:
 #:   - /home/homedir.dat
-#:   - ${HOME}/.netrc (created transiently with mode 600 and removed on exit)
-#:   - ${HOME}/services/git/github/GitProviderURL.sh
-#:   - External binaries: cat, echo, grep, cut, chmod, rm, git
+#:   - ${HOME}/runtime/software.dat
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/git/github/${orchestration_tool}/push_to_repository.sh
+#:   - External binaries: awk, cat, cut, echo, grep, tr
 #:
 #: Exit Codes:
-#:   0          Baseline commit pushed successfully to GitHub
-#:   1          Missing required arguments, missing config/helper script, or Git operation failure
+#:   0          Directory pushed cleanly and remote repository URL printed to stdout
+#:   1          Missing arguments, invalid directory, layout faults, configuration errors, or push failure
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -41,94 +43,81 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ####################################################################################
 
-# Exit immediately if any command exits with a non-zero status
 #set -x
 set -e
 
-# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
         exit 0
 fi
 
-# Resolve the toolkit root directory from the server tracking file
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-# Validate minimum required positional arguments
-if [ -z "${1}" ] || [ -z "${2}" ]
-then
-        /bin/echo "Error: 2 arguments are required and 1 optional argument." >&2
-        /bin/echo "Usage: $0 <repository_owner> <repository_name> [repository_username]" >&2
-        exit 1
-fi
-
-repository_owner="${1}"
+set +e
+source_directory="${1}"
 repository_name="${2}"
-repository_username="${3}"
+branch="${3:-main}"
+repository_ownername="${4:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYOWNER')}"
+repository_username="${5:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')}"
+set -e
 
-# Resolve canonical GitHub host domain via helper script (fallback to github.com)
-url_script="${HOME}/services/git/github/GitProviderURL.sh"
-if [ -x "${url_script}" ]
+if [ -z "${source_directory}" ] || [ -z "${repository_name}" ] || [ -z "${branch}" ] || [ -z "${repository_ownername}" ] || [ -z "${repository_username}" ]
 then
-        provider_url="$("${url_script}")"
+        /bin/echo "Error: Source directory, repository name, branch, owner, or username could not be determined." >&2
+        /bin/echo "Usage: $0 <source_directory> <repository_name> [branch] [repository_ownername] [repository_username]" >&2
+        exit 1
+fi
+
+if [ ! -d "${source_directory}" ]
+then
+        /bin/echo "failed"
+        /bin/echo "Error: Source directory not found at ${source_directory}." >&2
+        exit 1
+fi
+
+software_file="${HOME}/runtime/software.dat"
+if [ ! -f "${software_file}" ] || [ ! -r "${software_file}" ]
+then
+        /bin/echo "Error: Cannot read software configuration file at ${software_file}" >&2
+        exit 1
+fi
+
+orchestration_tool="$(/usr/bin/awk -F':' '/^ORCHESTRATION_TOOL:/ {print $NF}' "${software_file}" 2>/dev/null | /bin/tr -d ' ')"
+
+if [ -z "${orchestration_tool}" ]
+then
+        /bin/echo "Error: ORCHESTRATION_TOOL not found in ${software_file}" >&2
+        exit 1
+fi
+
+worker_script="${HOME}/services/git/github/${orchestration_tool}/push_to_repository.sh"
+
+if [ ! -x "${worker_script}" ]
+then
+        /bin/echo "Error: Provider push script not found or not executable at ${worker_script}" >&2
+        exit 1
+fi
+
+set +e
+output="$(${worker_script} "${source_directory}" "${branch}" "${repository_username}" "${repository_ownername}" "${repository_name}")"
+push_status="$?"
+set -e
+
+if [ "${push_status}" -eq 0 ] && [ -n "${output}" ]
+then
+        /bin/echo "${output}"
 else
-        provider_url="github.com"
+        /bin/echo "failed"
+        /bin/echo "Git push failed for ${repository_ownername}/${repository_name}. Check your API token, branch, or repository permissions." >&2
+        exit 1
 fi
-
-# Guarantee cleanup of transient .netrc credentials and report abnormal exits
-netrc_file="${HOME}/.netrc"
-
-handle_exit()
-{
-        exit_status="$?"
-        if [ "${exit_status}" -ne 0 ]
-        then
-                /bin/echo "Error: Script ($0) aborted unexpectedly with status ${exit_status}." >&2
-        fi
-        /bin/rm -f "${netrc_file}"
-}
-
-trap handle_exit EXIT
-
-# Create scoped .netrc with restricted permissions when REPOSITORY_TOKEN is set
-if [ -n "${REPOSITORY_TOKEN}" ]
-then
-        if [ -z "${repository_username}" ]
-        then
-                repository_username="x-access-token"
-        fi
-
-        (
-                umask 077
-                /bin/cat << EOF > "${netrc_file}"
-machine ${provider_url}
-login ${repository_username}
-password ${REPOSITORY_TOKEN}
-EOF
-        )
-        /bin/chmod 600 "${netrc_file}"
-fi
-
-# Initialize local Git repository, stage all baseline assets, and push to origin
-/usr/bin/git init
-/usr/bin/git branch -M main
-/usr/bin/git remote add origin "https://${provider_url}/${repository_owner}/${repository_name}.git"
-
-if [ -f .gitattributes ]
-then
-        /usr/bin/git add .gitattributes
-fi
-
-/usr/bin/git add --all -f
-/usr/bin/git commit -m "Baseline Baby"
-/usr/bin/git push -u origin main
 
 exit 0
 

@@ -1,12 +1,12 @@
 #!/bin/sh
-#: Name:        GitProviderURL.sh
+#: Name:        GetProviderURL.sh
 #: Purpose:     Outputs the base domain identifier string for the GitLab hosting platform.
 #: Author:      Peter Winter
 #: Date:        17/11/2026
 #: Version:     1.0
 #:
-#: Usage:       GitProviderURL.sh
-#:              GitProviderURL.sh [-h|--help]
+#: Usage:       GetProviderURL.sh
+#:              GetProviderURL.sh [-h|--help]
 #:
 #: Parameters:
 #:   None

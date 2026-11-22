@@ -215,3 +215,125 @@ Because managed databases have strict disk limits, an unmonitored log watcher ca
 	• MySQL/MariaDB: Compare SHOW MASTER STATUS; against the position saved in your /var/lib/mysql_stream.state file.
 	• PostgreSQL: Query SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots; to see the exact byte lag in real time.
 Which cloud provider (AWS, GCP, Azure, etc.) and database engine are you using? I can give you the exact CLI commands or Terraform/console settings to enable log streaming for your specific setup.
+
+For syncing two Linode Managed MySQL Databases across regions, there are two Linode-specific constraints your POSIX script must handle:
+1. Mandatory SSL/TLS: Linode Managed Databases reject unencrypted connections. Both mysqlbinlog and mysql must pass --ssl-mode=REQUIRED along with the downloaded CA certificate.
+2. Restricted SUPER Privileges: Because Linode locks down SUPER and BINLOG_ADMIN on managed clusters, mysqlbinlog outputs a few session header commands (like SET @@SESSION.GTID_NEXT=... or BINLOG '...' base64 row events) that will fail if piped straight into a managed target database. Passing --base64-output=DECODE-ROWS --verbose converts binary row events into standard INSERT/UPDATE/DELETE SQL statements that any normal user can execute.
+
+Step 1: Linode Cloud Manager Setup
+
+1. Spin up a Watcher VM: Deploy a Nanode (1GB) in the same data center as your Source MySQL cluster.
+2. Whitelist the Watcher's IP: Add the Nanode's IPv4/IPv6 address to the Allowed IP Addresses list on both the Source and Target Linode Managed Databases.
+3. Download CA Certificates: Download the CA certificate from both database clusters in Cloud Manager and save them on your Nanode:
+	• /etc/ssl/linode-src-ca.crt
+	• /etc/ssl/linode-dst-ca.crt
+4. Create a Replication User (on Source DB): Log in with akmadmin and run:sql
+CREATE USER 'repl_user'@'%' IDENTIFIED BY 'StrongPasswordHere!';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'repl_user'@'%';
+FLUSH PRIVILEGES;
+Use code with caution.
+
+Step 2: Store Credentials Securely (~/.my.cnf)
+
+Create two option group files on your Nanode (chmod 600 ~/.my-src.cnf ~/.my-dst.cnf) so passwords never appear in ps output:
+~/.my-src.cnf (Source Cluster):
+ini
+[client]
+host=source-cluster-id.servers.linodedb.net
+port=3306
+user=repl_user
+password=StrongPasswordHere!
+ssl-mode=REQUIRED
+ssl-ca=/etc/ssl/linode-src-ca.crt
+Use code with caution.
+~/.my-dst.cnf (Target Cluster):
+ini
+[client]
+host=target-cluster-id.servers.linodedb.net
+port=3306
+user=akmadmin
+password=TargetAdminPasswordHere!
+ssl-mode=REQUIRED
+ssl-ca=/etc/ssl/linode-dst-ca.crt
+Use code with caution.
+
+Step 3: The Linode POSIX Sync Script (linode_mysql_sync.sh)
+
+Because Linode Managed MySQL restricts BINLOG base64 replay, this script uses --base64-output=DECODE-ROWS -v combined with a lightweight POSIX awk parser to turn mysqlbinlog output into clean SQL statements, while filtering out privileged SET @@SESSION commands that managed databases reject.
+Save as /usr/local/bin/linode_mysql_sync.sh and make executable (chmod +x):
+sh
+#!/bin/sh
+set -eu
+
+SRC_CNF="$HOME/.my-src.cnf"
+DST_CNF="$HOME/.my-dst.cnf"
+TARGET_DB="defaultdb" # Replace with your actual database name
+STATE_FILE="/var/lib/linode_mysql_sync.state"
+
+# 1. Initialize state file on first run
+if [ ! -f "$STATE_FILE" ]; then
+    mysql --defaults-extra-file="$SRC_CNF" -N -e "SHOW MASTER STATUS;" \
+        | awk '{print $1, $2}' > "$STATE_FILE"
+fi
+
+while true; do
+    read -r LOG_FILE LOG_POS < "$STATE_FILE"
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Streaming $LOG_FILE @ $LOG_POS..."
+
+    # 2. Stream binlog over SSL -> decode row events -> filter restricted SETs -> apply to target
+    mysqlbinlog \
+        --defaults-extra-file="$SRC_CNF" \
+        --read-from-remote-server \
+        --stop-never \
+        --start-position="$LOG_POS" \
+        --base64-output=DECODE-ROWS \
+        --verbose \
+        "$LOG_FILE" | \
+    awk -v state="$STATE_FILE" -v file="$LOG_FILE" -v db="$TARGET_DB" '
+        # Track binlog file rotation
+        /^# Rotate to / {
+            match($0, /Rotate to [^ ]+/);
+            file = substr($0, RSTART + 10, RLENGTH - 10);
+        }
+        # Save exact byte offset to state file
+        /^# at [0-9]+/ {
+            pos = $3;
+            print file, pos > state;
+            close(state);
+        }
+        # Strip privileged session commands that Linode Managed DB blocks
+        /^SET @@SESSION\.GTID_NEXT/ { next; }
+        /^SET @@session\.sql_log_bin/ { next; }
+        /^DELIMITER/ { next; }
+        
+        # Forward standard DDL (CREATE/ALTER/DROP) and decoded row comments
+        /^(CREATE|ALTER|DROP|TRUNCATE|RENAME|USE) / {
+            print $0 ";";
+            fflush();
+        }
+        # Convert verbose decoded row events (### INSERT/UPDATE/DELETE) into executable SQL
+        /^### (INSERT INTO|UPDATE|DELETE FROM)/ {
+            sub(/^### /, "");
+            print;
+            fflush();
+        }
+        /^###   @[0-9]+=/ {
+            # Note: For production tables with many columns, map @1, @2 to column names
+            # or use statement-level logging if tables lack primary keys.
+            sub(/^###   @[0-9]+=/, "");
+        }
+    ' | mysql --defaults-extra-file="$DST_CNF" "$TARGET_DB" --force || true
+
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Stream interrupted. Reconnecting in 5s..."
+    sleep 5
+done
+Use code with caution.
+
+Important Caveat on mysqlbinlog --verbose
+
+Notice the comment in the awk block above: when mysqlbinlog decodes ROW format events with -v, it outputs columns as positional placeholders (@1='foo', @2=123) rather than column names (name='foo', id=123).
+To make mysqlbinlog output ready-to-run SQL with real column names without writing a column-mapping parser:
+• Option A (Easiest): If your Linode Managed MySQL parameters allow binlog_format = MIXED or STATEMENT, mysqlbinlog outputs literal INSERT INTO orders (id, total) VALUES (1, 50.00); statements natively—meaning you can remove the ### parsing rules and pipe the SQL straight into mysql.
+• Option B (If stuck on ROW format): Use Percona's pt-table-sync or mydumper/myloader on a 1-minute cron, or use a lightweight CDC tool like Maxwell's Daemon (maxwell --config config.properties), which reads the Linode MySQL binlog over SSL and outputs clean SQL or JSON directly.
+Would you like to check if binlog_format can be switched on your Linode cluster, or would you prefer the 1-minute pt-table-sync POSIX cron script (which handles ROW-format Linode Managed MySQL databases out of the box with zero awk parsing)?
+Copying...

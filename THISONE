@@ -208,4 +208,44 @@ To make sure mysqlbinlog --read-from-remote-server can pull from your managed da
 2. Binlog Retention: Make sure your Linode Managed MySQL cluster retains binary logs for at least a few hours (default on Aiven/Linode Managed MySQL is typically 24 hours with backups enabled) so if your VM reboots, mysqlbinlog can pick up right where binlog_node1.state left off.
 Would you like a quick one-line test command you can run on your Linode VM right now to verify that mysqlbinlog --read-from-remote-server connects to your Linode Managed MySQL cluster cleanly over SSL?
 
+No—the only reason that awk script looked so complicated is because MySQL defaults to ROW binary logging, which outputs column numbers (@1, @2) instead of column names.
+If you change one database parameter—or use a lightweight open-source binlog reader—the entire awk column-mapping script disappears.
+
+Option 1: Set binlog_format = STATEMENT or MIXED (Simplest)
+
+When MySQL uses STATEMENT (or MIXED for standard queries) instead of ROW, mysqlbinlog outputs literal, ready-to-execute SQL statements (INSERT INTO orders ...;) natively.
+Your entire binlog_to_file.sh processor shrinks to 5 lines:
+sh
+mysqlbinlog \
+    --defaults-extra-file="$SRC_CNF" \
+    --read-from-remote-server \
+    --stop-never \
+    --database="$DB_NAME" \
+    --start-position="$START_POS" \
+    "$START_FILE" \
+
+| grep -E '^(INSERT|UPDATE|DELETE|REPLACE) ' >> "$EVENTS_FILE"
+Use code with caution.
+(Caveat: Check if Linode Managed MySQL's Advanced Configuration Parameters allow changing binlog_format from ROW to MIXED—Aiven/Linode locks ROW on some plans for replication safety).
+
+Option 2: Use Maxwell's Daemon (Zero Custom Parsing, Works on ROW Format)
+
+If your Linode Managed MySQL cluster locks binlog_format = ROW, don't write your own awk parser. Run Maxwell's Daemon—a single lightweight open-source tool made specifically to read MySQL's ROW binlog over SSL and output clean JSON with real column names automatically:
+sh
+maxwell \
+  --host=your-cluster.servers.linodedb.net \
+  --user=akmadmin \
+  --password=your_password \
+  --ssl=REQUIRED \
+  --producer=file \
+  --output_file=/var/lib/db_sync/events.json
+Use code with caution.
+Maxwell handles binlog positions, column names, multi-line text, and reconnects out of the box.
+
+Option 3: Log SQL Directly in Your App Code (Simplest of All)
+
+If you control your web application (e.g., PHP/Laravel, Node, Python), you can skip mysqlbinlog completely:
+• Whenever your app executes a write query (INSERT, UPDATE, DELETE), have your database wrapper append that SQL statement (with origin_node_id = 'node1') straight to /var/lib/db_sync/events.sql.
+• Your file_to_peer.sh SSH tunnel tailer then ships those exact lines to the other 3 regions immediately—with zero binlog parsing at all.
+Which of these three feels cleanest for your stack—checking if binlog_format = MIXED is available on Linode, running Maxwell's Daemon, or appending write queries directly from your application code?
 

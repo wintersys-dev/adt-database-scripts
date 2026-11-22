@@ -170,3 +170,48 @@ Important Operational Tip for PostgreSQL
 
 Because PostgreSQL tracks your cursor inside a server-side replication slot, it will retain unconsumed WAL files on disk until your script reads them. If you ever permanently stop or delete your sync script, remember to drop the slot (SELECT pg_drop_replication_slot('cli_sync_slot');) so the source database doesn't fill up its disk waiting for the consumer to return.
 Would you like a systemd service unit to keep these while true loops running reliably in the background, or do you need to filter out specific tables/databases from the stream?
+
+
+On managed databases (like AWS RDS, Google Cloud SQL, or Azure Database), you don't have SSH access to the underlying server's filesystem, so you monitor the log over the network using the exact same replication protocol that read replicas use.
+The CLI commands in the previous scripts (mysqlbinlog --read-from-remote-server, mariadb-binlog --read-from-remote-server, and pg_recvlogical) already work remotely over TCP/IP without SSH. However, managed cloud providers require specific configuration flags and retention settings so they don't delete logs before your script reads them.
+
+1. Where to Run the CLI Watcher
+
+Since you can't run a shell script inside a managed DB instance, run your POSIX watcher script on:
+• A lightweight VM (e.g., an AWS EC2 t4g.nano or GCP e2-micro instance) in the same VPC/region as the source database.
+• A containerized cron/worker task (e.g., ECS, Cloud Run jobs, or Kubernetes).
+
+2. Cloud-Specific Prerequisites by Engine
+
+
+MySQL & MariaDB (AWS RDS / Cloud SQL / Azure)
+
+1. Enable Automated Backups: Managed providers disable binary logging (log_bin) unless automated backups are turned on (even a 1-day retention period enables it).
+2. Increase Binlog Retention Hours: By default, managed providers purge binary logs almost immediately after writing them. Increase retention to at least 24 hours so your script can catch up after a network outage:
+	• AWS RDS: Run CALL mysql.rds_set_configuration('binlog retention hours', 24);
+	• Google Cloud SQL: Enabled automatically with Point-in-Time Recovery (PITR).
+	• Azure: Set binlog_expire_logs_seconds = 86400 in Server Parameters.
+3. Grant Replication Permissions: Managed providers restrict SUPER privileges, so grant the specific replication roles allowed by your provider:sql
+CREATE USER 'repl_user'@'%' IDENTIFIED BY 'your_password';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'repl_user'@'%';
+Use code with caution.
+
+PostgreSQL (AWS RDS / Cloud SQL / Azure)
+
+1. Enable Logical Replication in Parameter Groups: You cannot edit postgresql.conf directly; instead, change the parameter in your cloud console and reboot the instance:
+	• AWS RDS: Set rds.logical_replication = 1 in your DB Parameter Group.
+	• Google Cloud SQL: Set the cloudsql.logical_decoding = on database flag.
+	• Azure: Set wal_level = logical in Server Parameters.
+2. Grant Cloud-Specific Replication Role: Standard WITH REPLICATION fails on some managed platforms because superuser is locked down. Use the provider's wrapper role instead:
+	• AWS RDS: GRANT rds_replication TO repl_user;
+	• Google Cloud SQL: Create the user with the cloudsqlsuperuser role or ALTER USER repl_user WITH REPLICATION;.
+	• Azure: GRANT azure_pg_admin TO repl_user; (or WITH REPLICATION on Flexible Server).
+
+3. Essential Monitoring & Health Checks
+
+Because managed databases have strict disk limits, an unmonitored log watcher can accidentally crash your production database if it stalls. Add these two safeguards:
+• Prevent Disk Full on PostgreSQL: Set max_slot_wal_keep_size (e.g., 10240 for 10 GB) in your Parameter Group. If your watcher script crashes and stops reading the slot, PostgreSQL will automatically drop the slot once unconsumed logs hit 10 GB rather than filling up your production storage and taking the database offline.
+• Alert on Replication Lag: Monitor the gap between the source database's current log position and your script's state file:
+	• MySQL/MariaDB: Compare SHOW MASTER STATUS; against the position saved in your /var/lib/mysql_stream.state file.
+	• PostgreSQL: Query SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots; to see the exact byte lag in real time.
+Which cloud provider (AWS, GCP, Azure, etc.) and database engine are you using? I can give you the exact CLI commands or Terraform/console settings to enable log streaming for your specific setup.

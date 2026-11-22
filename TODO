@@ -1,96 +1,203 @@
-To implement Option 1 using the Agile Deployment Toolkit (ADT) datastore scripts, pair a local-disk Debezium Server (or CDC exporter) with PutToDatastore.sh in "distributed" mode on the primary region, and poll your local region's bucket with GetFromDatastore.sh on the remote region.
-Because ADT's datastore wrapper scripts natively replicate "distributed" writes across every pipe-delimited (|) S3 endpoint configured in your template, you do not need cross-region S3 replication or custom multi-bucket upload logic.
+Here is a complete, end-to-end solution that runs SymmetricDS directly on your 4 database VPS machines (region-1 through region-4) and uses Wintersys's native PutToDatastore.sh, SyncFromDatastore.sh, and DeleteFromDatastore.sh scripts to bridge your MySQL and PostgreSQL databases across all 4 regions—with zero rclone dependencies and without touching the heavyweight filesystem syncer.
 
-1. Configure Multi-Region Datastore Chains in ADT
+How the Native Datastore Bridge Works
 
-In your ADT templates, define S3_ACCESS_KEY, S3_SECRET_KEY, S3_HOST_BASE, and S3_LOCATION using pipe-delimited chains. ADT always treats the first entry (.s5cfg-1) as the local region's reference bucket.
-• Primary Region Template (e.g., London primary, Amsterdam secondary):bash
-export S3_ACCESS_KEY="<LON_KEY>|<AMS_KEY>"
-export S3_SECRET_KEY="<LON_SECRET>|<AMS_SECRET>"
-export S3_HOST_BASE="://linodeobjects.com|://linodeobjects.com"
-export S3_LOCATION="US|US"
-Use code with caution.
-• Remote Region Template (Amsterdam first so local reads hit Amsterdam):bash
-export S3_ACCESS_KEY="<AMS_KEY>|<LON_KEY>"
-export S3_SECRET_KEY="<AMS_SECRET>|<LON_SECRET>"
-export S3_HOST_BASE="://linodeobjects.com|://linodeobjects.com"
-export S3_LOCATION="US|US"
-Use code with caution.
-(Refer to the ADT Datastore Operational Protocols for exact multi-region chain behavior).
+Wintersys's datastore architecture supports chaining multiple regional S3 buckets using pipe-delimited (|) credentials in your deployment template (e.g., S3_HOST_BASE="ams3.digitaloceanspaces.com|fra1.digitaloceanspaces.com|...").
+• PutToDatastore.sh in "distributed" mode automatically pushes a batch file to all chained regional S3 buckets in one call (so each region reads from its own local S3 bucket with zero cross-region GET latency).
+• SyncFromDatastore.sh in "local" mode pulls incoming batches exclusively from that region's local S3 bucket into SymmetricDS's inbound queue.
+• Native DB Connection Helpers: You can use Wintersys's ${HOME}/utilities/remote/ConnectToMySQLDB.sh and ${HOME}/utilities/remote/ConnectToPostgresDB.sh to apply the initial primary-key and SymmetricDS metadata setup. [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
 
-2. Primary Region: Capture CDC & Push with PutToDatastore.sh
+Step 1: Configure Multi-Region S3 Chaining in Your Templates
 
-Instead of having Debezium write directly to S3, configure Debezium Server to write JSON change events to a local staging directory (e.g., /var/tmp/cdc-out/), rotating files every few seconds with sequence-prefixed filenames (00000001.jsonl, 00000002.jsonl).
-Then run a lightweight shipper loop (or cron job) on your primary-region database/worker node that mounts your CDC bucket across regions and pushes each completed batch using PutToDatastore.sh in distributed mode: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/AuthenticatorMachines)
+In each region's Wintersys deployment template, configure S3_ACCESS_KEY, S3_SECRET_KEY, S3_HOST_BASE, and S3_LOCATION with that region's local S3 bucket first, followed by the other 3 regions:
 bash
-#!/bin/sh
-BUCKET_NAME="cdc-tx-stream"
-STAGE_DIR="/var/tmp/cdc-out"
+# Example for Region 1's template (Region 1 S3 endpoint MUST be first)
+export S3_ACCESS_KEY="<R1_KEY>|<R2_KEY>|<R3_KEY>|<R4_KEY>"
+export S3_SECRET_KEY="<R1_SECRET>|<R2_SECRET>|<R3_SECRET>|<R4_SECRET>"
+export S3_HOST_BASE="<R1_S3_HOST>|<R2_S3_HOST>|<R3_S3_HOST>|<R4_S3_HOST>"
+export S3_LOCATION="US|US|US|US"
+Use code with caution.
+(Repeat for Regions 2, 3, and 4, rotating the list so each region's local S3 endpoint sits at position 1.)
 
-# Ensure the bucket exists across all configured regions
-${HOME}/services/datastore/operations/MountDatastore.sh "${BUCKET_NAME}" "distributed"
+Step 2: Prevent Primary Key Collisions Across All 4 Databases
 
-for file in $(ls -1 "${STAGE_DIR}"/*.jsonl 2>/dev/null | sort); do
-    filename=$(basename "${file}")
-    
-    # Push to ALL regions in the S3 chain ("distributed") and delete local file ("yes")
-    ${HOME}/services/datastore/operations/PutToDatastore.sh \
-        "${BUCKET_NAME}" \
-        "${file}" \
-        "tx/${filename}" \
-        "distributed" \
-        "yes"
+Before starting replication, stagger primary key generation on each database VPS so two regions never mint the same ID:
+• On MySQL / MariaDB Regions (connect via ${HOME}/utilities/remote/ConnectToMySQLDB.sh):sql
+-- Set offset = 1 for region-1, 2 for region-2, 3 for region-3, 4 for region-4
+SET PERSIST auto_increment_increment = 10;
+SET PERSIST auto_increment_offset = 1;
+Use code with caution.
+• On PostgreSQL Regions (connect via ${HOME}/utilities/remote/ConnectToPostgresDB.sh):sql
+-- Run for each auto-incrementing sequence; adjust RESTART WITH (1, 2, 3, or 4) per region
+ALTER SEQUENCE your_table_id_seq INCREMENT BY 10 RESTART WITH 1;
+Use code with caution.
+(Skip this if your tables already use UUID primary keys.) [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
+
+Step 3: Install & Configure SymmetricDS on Each Database VPS
+
+1. Install Java 17 and SymmetricDS on all 4 database VPS machines:bash
+apt-get update && apt-get install -y openjdk-17-jre-headless unzip wget
+wget -q https://sourceforge.net
+unzip -q symmetric-server-3.15.10.zip -d /opt/
+mv /opt/symmetric-server-* /opt/symmetric-ds
+mkdir -p /opt/symmetric-ds/s3-bridge/{outgoing,incoming}
+Use code with caution.
+2. Cap JVM Memory in /opt/symmetric-ds/conf/sym_service.conf so Java never competes with MySQL/Postgres for RAM:properties
+wrapper.java.initmemory=128
+wrapper.java.maxmemory=384
+Use code with caution.
+3. Create the Engine Properties File (/opt/symmetric-ds/engines/region-1.properties — adjust region-X and JDBC URL per VPS):For a MySQL Database VPS:properties
+engine.name=region-1
+group.id=mesh-node
+external.id=region-1
+
+db.driver=com.mysql.cj.jdbc.Driver
+db.url=jdbc:mysql://127.0.0.1:3306/YOUR_DB_NAME?useSSL=false&allowPublicKeyRetrieval=true&tinyInt1isBit=false
+db.user=YOUR_DB_USER
+db.password=YOUR_DB_PASSWORD
+
+registration.url=
+sync.url=file:///opt/symmetric-ds/s3-bridge
+transport.type=file
+offline.outbound.dir=/opt/symmetric-ds/s3-bridge/outgoing
+offline.inbound.dir=/opt/symmetric-ds/s3-bridge/incoming
+
+job.push.period.time.ms=10000
+job.pull.period.time.ms=10000
+job.routing.period.time.ms=5000
+Use code with caution.
+For a PostgreSQL Database VPS:properties
+engine.name=region-2
+group.id=mesh-node
+external.id=region-2
+
+db.driver=org.postgresql.Driver
+db.url=jdbc:postgresql://127.0.0.1:5432/YOUR_DB_NAME?sslmode=disable
+db.user=YOUR_DB_USER
+db.password=YOUR_DB_PASSWORD
+
+registration.url=
+sync.url=file:///opt/symmetric-ds/s3-bridge
+transport.type=file
+offline.outbound.dir=/opt/symmetric-ds/s3-bridge/outgoing
+offline.inbound.dir=/opt/symmetric-ds/s3-bridge/incoming
+
+job.push.period.time.ms=10000
+job.pull.period.time.ms=10000
+job.routing.period.time.ms=5000
+Use code with caution.
+
+Step 4: Create the Native Wintersys Datastore Bridge Script
+
+Create /usr/local/bin/wintersys-db-bridge.sh on each database VPS. This script mounts the shared bucket (<website_url>-db-sync-bridge), pushes completed outgoing batches to all regions via PutToDatastore.sh ("distributed"), and pulls only batches addressed to the local node (*-to-${NODE_ID}-*) via GetFromDatastore.sh ("local"):
+bash
+#!/bin/bash
+set -euo pipefail
+
+# --- CONFIGURATION (Set NODE_ID to region-1, region-2, region-3, or region-4) ---
+NODE_ID="region-1"
+HOME_DIR="/root"
+DS_OPS="${HOME_DIR}/services/datastore/operations"
+WEBSITE_URL="$("${HOME_DIR}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
+BUCKET="${WEBSITE_URL}-db-sync-bridge"
+
+OUT_DIR="/opt/symmetric-ds/s3-bridge/outgoing"
+IN_DIR="/opt/symmetric-ds/s3-bridge/incoming"
+LOCK_FILE="/tmp/wintersys-db-bridge.lock"
+
+# Prevent overlapping runs
+exec 200>"${LOCK_FILE}"
+flock -n 200 || exit 0
+
+# Ensure the sync bucket exists across all chained regions
+"${DS_OPS}/MountDatastore.sh" "${BUCKET}" "distributed" >/dev/null 2>&1 || true
+
+# 1. PUSH OUTGOING BATCHES (Ignore .tmp files still being written by SymmetricDS)
+for filepath in "${OUT_DIR}"/*; do
+    [ -e "${filepath}" ] || continue
+    filename="$(basename "${filepath}")"
+    [[ "${filename}" == *.tmp ]] && continue
+
+    # SymmetricDS names offline batch files: <source>-to-<target>-<batch_id>.csv
+    # Extract target node ID from filename
+    target_node="$(echo "${filename}" | sed -n 's/.*-to-\(region-[0-9]\+\)-.*/\1/p')"
+    [ -z "${target_node}" ] && continue
+
+    # Push to the target region's folder across all chained datastores and delete local file on success
+    "${DS_OPS}/PutToDatastore.sh" "${BUCKET}" "${filepath}" "${target_node}" "distributed" "yes"
 done
-Use code with caution.
-• Why "distributed" matters: ADT loops through every configured S3 endpoint and uploads the transaction batch to both your primary and remote Linode Object Storage buckets in one call.
 
-3. Remote Region: Pull & Apply with GetFromDatastore.sh
+# 2. PULL INCOMING BATCHES FOR THIS REGION FROM LOCAL DATASTORE
+# List objects in s3://<bucket>/<NODE_ID>/
+mapfile -t incoming_files < <("${DS_OPS}/ListFromDatastore.sh" "${BUCKET}" "${NODE_ID}" "local" 2>/dev/null | awk '{print $NF}' | grep -E '\.csv$' || true)
 
-On the remote region's database/worker node, poll your local region's replicated bucket (://linodeobjects.com) using ListFromDatastore.sh and GetFromDatastore.sh. Because GetFromDatastore.sh always reads from the first credential in your chain (.s5cfg-1), cross-region network fetches are avoided during replay.
-bash
-#!/bin/sh
-BUCKET_NAME="cdc-tx-stream"
-WORK_DIR="/var/tmp/cdc-in"
-STATE_FILE="${HOME}/runtime/last_applied_tx.seq"
-mkdir -p "${WORK_DIR}"
-touch "${STATE_FILE}"
+for remote_path in "${incoming_files[@]}"; do
+    [ -z "${remote_path}" ] && continue
+    filename="$(basename "${remote_path}")"
+    local_target="${IN_DIR}/${filename}"
+    local_tmp="${IN_DIR}/.${filename}.tmp"
 
-LAST_APPLIED=$(cat "${STATE_FILE}")
-
-# List objects in the local region bucket and sort lexicographically
-OBJECTS=$(${HOME}/services/datastore/operations/ListFromDatastore.sh "${BUCKET_NAME}" "tx/" | awk '{print $NF}' | sort)
-
-for obj_path in ${OBJECTS}; do
-    filename=$(basename "${obj_path}")
-    [ -z "${filename}" ] && continue
-
-    # Skip already-applied batches
-    if [ "${filename}" \> "${LAST_APPLIED}" ]; then
-        local_file="${WORK_DIR}/${filename}"
-
-        # Pull from local region datastore
-        ${HOME}/services/datastore/operations/GetFromDatastore.sh \
-            "${BUCKET_NAME}" \
-            "tx/${filename}" \
-            "${local_file}"
-
-        if [ -f "${local_file}" ]; then
-            # Convert Debezium JSON events into idempotent SQL and execute
-            python3 ${HOME}/utilities/cdc/apply_debezium_batch.py "${local_file}" && {
-                echo "${filename}" > "${STATE_FILE}"
-                rm -f "${local_file}"
-            }
-        fi
+    # Download atomically via .tmp file so SymmetricDS doesn't read a half-downloaded CSV
+    "${DS_OPS}/GetFromDatastore.sh" "${BUCKET}/${NODE_ID}/${filename}" "${local_tmp}" "local"
+    if [ -s "${local_tmp}" ]; then
+        mv "${local_tmp}" "${local_target}"
+        # Remove processed batch from S3 across all chained buckets so it isn't re-applied
+        "${DS_OPS}/DeleteFromDatastore.sh" "${BUCKET}" "${NODE_ID}/${filename}" "distributed"
     fi
 done
 Use code with caution.
+Make it executable and schedule it via a systemd timer (or cron loop every 10 seconds):
+bash
+chmod +x /usr/local/bin/wintersys-db-bridge.sh
 
-4. Connecting the Applier to Linode Managed Databases in ADT
+# Add to root crontab (runs every 10 seconds)
+(crontab -l 2>/dev/null; echo "* * * * * for i in 0 10 20 30 40 50; do (sleep \$i; /usr/local/bin/wintersys-db-bridge.sh) & done") | crontab -
+Use code with caution.
 
-In ADT, DBaaS credentials and connection helpers are already wired into your deployed nodes: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
-• Database Connection: Inside apply_debezium_batch.py (or a shell wrapper), source ADT's database configuration variables or invoke ADT's existing connection wrappers (${HOME}/utilities/remote/ConnectToRemotePostgresDB.sh or ConnectToMySQLDB.sh) to get the remote Managed Database host, port, username, password, and SSL certificate path. [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
-• Firewall Access: Ensure the remote worker node's IP (or VPC range) is allowed on your remote Linode Managed Database firewall—similar to how ADT's Multi-Region Operations manages cross-region DBaaS allow lists.
-• Cleanup: Schedule a periodic retention cleanup on the remote node using DeleteFromDatastore.sh (in "local" or "distributed" mode) once objects are older than your recovery window.
-If you'd like the ready-to-use application.properties for Debezium Server and the apply_debezium_batch.py applier script, let me know:
-• Whether your Managed Database is MySQL or PostgreSQL
-• Which ADT machine role (webserver, database node, or dedicated worker) you plan to run the shipper and applier on
+Step 5: Initialize SymmetricDS & Load the 4-Region Mesh Rules
+
+1. Start SymmetricDS on Region 1 first to generate the sym_* system tables in Region 1's database:bash
+/opt/symmetric-ds/bin/sym_service install
+/opt/symmetric-ds/bin/sym_service start
+Use code with caution.
+Wait ~15 seconds for the sym_* tables to be created, then run this SQL configuration on Region 1 only:sql
+-- 1. Define the peer group
+INSERT INTO sym_node_group (node_group_id) VALUES ('mesh-node');
+
+-- 2. Enable bidirectional full-mesh syncing ('W' = wait for pull / offline batch)
+INSERT INTO sym_node_group_link (source_node_group_id, target_node_group_id, data_event_action)
+VALUES ('mesh-node', 'mesh-node', 'W');
+
+-- 3. Create replication channel with moderate batch size to keep DB VPS CPU low
+INSERT INTO sym_channel (channel_id, processing_order, max_batch_size, enabled)
+VALUES ('default_channel', 1, 500, 1);
+
+-- 4. Capture changes on all user tables; sync_on_incoming_batch=0 prevents echo loops
+INSERT INTO sym_trigger (trigger_id, source_table_name, channel_id, sync_on_incoming_batch, last_update_time, create_time)
+VALUES ('all_tables', '*', 'default_channel', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- 5. Route all changes to all other nodes in the mesh
+INSERT INTO sym_router (router_id, source_node_group_id, target_node_group_id, router_type, create_time, last_update_time)
+VALUES ('mesh_router', 'mesh-node', 'mesh-node', 'default', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO sym_trigger_router (trigger_id, router_id, initial_load_order, create_time, last_update_time)
+VALUES ('all_tables', 'mesh_router', 100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- 6. Conflict resolution: newest timestamp wins across regions
+INSERT INTO sym_conflict (conflict_id, source_node_group_id, target_node_group_id, detect_type, resolve_type, ping_back, create_time, last_update_time)
+VALUES ('newest_wins_rule', 'mesh-node', 'mesh-node', 'USE_TIMESTAMP', 'NEWER_WINS', 'OFF', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+Use code with caution.
+2. Start SymmetricDS on Regions 2, 3, and 4:bash
+/opt/symmetric-ds/bin/sym_service install
+/opt/symmetric-ds/bin/sym_service start
+Use code with caution.
+Region 1 will push its sym_* routing metadata into the S3 bridge, and Regions 2, 3, and 4 will automatically pull it down, build triggers on their local MySQL/PostgreSQL tables, and begin multi-directional replication.
+
+Operational Checklist
+
+• Persistent across rebuilds: Drop the SymmetricDS installation, region-X.properties, and /usr/local/bin/wintersys-db-bridge.sh into your Wintersys database post-build customization hook so any rebuilt DB VPS rejoins automatically.
+• Verify sync health: Check /opt/symmetric-ds/logs/symmetric.log or query SELECT * FROM sym_outgoing_batch WHERE status != 'OK'; on any database to confirm batches are clearing cleanly.
+If you want to customize this further, let me know:
+• Whether your tables already have a UTC updated_at timestamp column (needed for USE_TIMESTAMP conflict resolution) or if you prefer primary-key fallback resolution
+• If you also want a Wintersys post-build hook snippet to automate installing this whenever a new DB machine is spun up
+

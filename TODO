@@ -1,3 +1,7 @@
+I can open up the firewall on each managed database to the VPS database machine and apply the updates to each of the remote databases as soon as they are available
+to each of the databases in the fleet. Can't do it for every transaction because the overhead of establishing the remote connection is high but
+it is simpler than setting up an "always open" ssh tunnel. 
+
 Here is a complete, end-to-end solution that runs SymmetricDS directly on your 4 database VPS machines (region-1 through region-4) and uses Wintersys's native PutToDatastore.sh, SyncFromDatastore.sh, and DeleteFromDatastore.sh scripts to bridge your MySQL and PostgreSQL databases across all 4 regions—with zero rclone dependencies and without touching the heavyweight filesystem syncer.
 
 How the Native Datastore Bridge Works

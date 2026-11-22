@@ -238,3 +238,49 @@ If you'd like to dive deeper into failure handling or edge cases, let me know:
 • Whether you want to add monitoring/alerting if a batch fails to apply due to a schema mismatch or constraint error
 
 
+Your actual application data updated by SymmetricDS should definitely be stored in your database backups and baselines, while SymmetricDS's internal sym_* system tables should be excluded.
+In a multi-region mesh, any data replicated from Region 2 into Region 1 is genuine production data—so your regular database backups must capture it. However, backing up SymmetricDS's internal sym_* tables (such as sym_data, sym_outgoing_batch, and sym_incoming_batch) into a baseline image can break replication if you ever restore or spin up a new server from that baseline.
+
+Why sym_* Tables Must Be Excluded From Baselines & Backups
+
+• Stale Node Identity & Batch Cursors: sym_node_identity stores the specific region-X ID of the server that took the backup. If you spin up a new Region 4 server using a baseline taken from Region 1, the new server will wake up thinking it is region-1, causing split-brain conflicts and duplicate batch IDs.
+• Bloated Backup Sizes: sym_data and sym_data_event log every single row change over time. Including them in hourly or daily Wintersys database backups inflates archive sizes and slows down restore times.
+• Broken Triggers on Restore: Database dumps include the sym_on_i_*, sym_on_u_*, and sym_on_d_* triggers attached to your user tables. If you restore a dump onto a fresh server before SymmetricDS is configured, those triggers will fire on every INSERT during the restore and either fail or flood sym_data with millions of redundant events.
+
+How to Configure Wintersys Backups & Baselines Properly
+
+
+1. Exclude sym_* Tables From Wintersys Scheduled Backups
+
+In Wintersys's database backup scripts (which run mysqldump or pg_dump before pushing to S3 via PutToDatastore.sh), pass ignore flags so only your application tables are backed up:
+• For MySQL / MariaDB (mysqldump):
+Pass --ignore-table for the sym_* metadata tables (or dynamically exclude all tables matching sym_%):bash
+# Generate --ignore-table flags for all sym_* tables dynamically
+IGNORE_TABLES=$(mysql -N -B -e "SELECT CONCAT('--ignore-table=', table_schema, '.', table_name) FROM information_schema.tables WHERE table_schema = '${DB_NAME}' AND table_name LIKE 'sym_%';")
+
+mysqldump ${IGNORE_TABLES} --single-transaction "${DB_NAME}" > backup.sql
+Use code with caution.
+• For PostgreSQL (pg_dump):
+PostgreSQL natively supports wildcards for excluding tables and triggers:bash
+pg_dump --exclude-table='sym_*' --exclude-table-data='sym_*' "${DB_NAME}" > backup.sql
+Use code with caution.
+
+2. Keep Baselines Clean (Application Schema + Seed Data Only)
+
+When creating a Wintersys Baseline (used to spin up fresh deployments or replace a destroyed database VPS):
+• Never include sym_* tables or sym_* triggers in your baseline SQL dump.
+• Let SymmetricDS rebuild them on boot: When a newly spun-up database VPS restores a clean baseline and starts sym_service, SymmetricDS automatically detects that sym_* tables are missing, recreates them cleanly for that specific region-X identity, attaches fresh triggers, and pulls any missed updates from the mesh.
+
+Summary Rule of Thumb
+
+
+Data Type	Include in Regular Backups?	Include in Wintersys Baseline?
+User Tables (including rows synced from other regions)	Yes	Yes (seed/initial state)
+SymmetricDS sym_* Tables & Triggers	No (exclude sym_*)	No (auto-generated on boot)
+
+If you'd like to automate this inside your Wintersys setup, let me know:
+• Whether you want the exact hook inside Wintersys's backup script (BackupDB.sh) to strip sym_* tables automatically
+• How you plan to re-sync a replaced database VPS (e.g., pulling the latest clean backup from S3 before starting sym_service)
+
+
+

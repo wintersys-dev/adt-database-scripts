@@ -201,3 +201,40 @@ If you want to customize this further, let me know:
 • Whether your tables already have a UTC updated_at timestamp column (needed for USE_TIMESTAMP conflict resolution) or if you prefer primary-key fallback resolution
 • If you also want a Wintersys post-build hook snippet to automate installing this whenever a new DB machine is spun up
 
+Each region discovers updates through a two-stage polling loop—first at the S3 bucket level, and then at the local filesystem level—using the batch filename as the routing address.
+Here is the exact step-by-step lifecycle of an update from Region 1 to Region 2:
+
+1. Outgoing Batch Creation (Region 1)
+
+1. Trigger fires: A row is inserted or updated in Region 1's database. SymmetricDS's database trigger writes the change to its internal sym_data table.
+2. Batch packaging: Every 5–10 seconds (job.push.period.time.ms), SymmetricDS's offline transport packages those changes into a CSV file in /opt/symmetric-ds/s3-bridge/outgoing/ with the target node baked right into the filename:
+region-1-to-region-2-000042.csv (along with matching files for -to-region-3- and -to-region-4-).
+
+2. S3 Upload & Folder Routing (Region 1 Bridge Script)
+
+3. Filename inspection: Every 10 seconds, /usr/local/bin/wintersys-db-bridge.sh scans /opt/symmetric-ds/s3-bridge/outgoing/.
+4. Targeted upload: It parses -to-region-2- from the filename and calls PutToDatastore.sh to upload that specific file into the region-2/ prefix inside the shared S3 bucket:
+s3://<bucket>/region-2/region-1-to-region-2-000042.csv
+5. Local cleanup: Once PutToDatastore.sh confirms the upload succeeded, it deletes the local outgoing file so it isn't uploaded twice.
+
+3. S3 Polling & Download (Region 2 Bridge Script)
+
+6. Mailbox check: Every 10 seconds, Region 2's wintersys-db-bridge.sh runs ListFromDatastore.sh exclusively on its own S3 "inbox" prefix (s3://<bucket>/region-2/).
+7. Atomic download: Because a file is sitting in region-2/, Region 2 knows immediately it has an update waiting. It downloads the file to a hidden .tmp file inside /opt/symmetric-ds/s3-bridge/incoming/ and renames it to region-1-to-region-2-000042.csv once the download completes.
+8. S3 cleanup: Immediately after the rename succeeds, Region 2 calls DeleteFromDatastore.sh to remove region-1-to-region-2-000042.csv from S3 so it won't download it again on the next 10-second tick.
+
+4. Local Ingestion & Application (Region 2 SymmetricDS)
+
+9. Local directory poll: Every 10 seconds (job.pull.period.time.ms), Region 2's SymmetricDS background worker checks /opt/symmetric-ds/s3-bridge/incoming/.
+10. Apply & delete: Seeing region-1-to-region-2-000042.csv, it parses the CSV, applies the SQL INSERT/UPDATE/DELETE statements to Region 2's local database (with sync_on_incoming_batch=0 so Region 2's triggers ignore it), logs the batch ID in sym_incoming_batch to guarantee idempotency, and deletes the local CSV file.
+
+Summary of the "Notification" Mechanism
+
+There are no push webhooks or open network ports between servers. Instead:
+• S3 prefixes (region-1/, region-2/, region-3/, region-4/) act as dedicated per-region mailboxes.
+• 10-second cron polling (ListFromDatastore.sh + SymmetricDS's job.pull.period.time.ms) acts as the heartbeat that checks the mailbox, giving you an end-to-end replication latency of roughly 10 to 25 seconds across regions.
+If you'd like to dive deeper into failure handling or edge cases, let me know:
+• How you'd like to handle offline regions (e.g., if Region 3 goes down for a day and accumulates thousands of files in its S3 inbox)
+• Whether you want to add monitoring/alerting if a batch fails to apply due to a schema mismatch or constraint error
+
+

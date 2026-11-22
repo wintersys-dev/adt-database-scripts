@@ -1,0 +1,96 @@
+To implement Option 1 using the Agile Deployment Toolkit (ADT) datastore scripts, pair a local-disk Debezium Server (or CDC exporter) with PutToDatastore.sh in "distributed" mode on the primary region, and poll your local region's bucket with GetFromDatastore.sh on the remote region.
+Because ADT's datastore wrapper scripts natively replicate "distributed" writes across every pipe-delimited (|) S3 endpoint configured in your template, you do not need cross-region S3 replication or custom multi-bucket upload logic.
+
+1. Configure Multi-Region Datastore Chains in ADT
+
+In your ADT templates, define S3_ACCESS_KEY, S3_SECRET_KEY, S3_HOST_BASE, and S3_LOCATION using pipe-delimited chains. ADT always treats the first entry (.s5cfg-1) as the local region's reference bucket.
+• Primary Region Template (e.g., London primary, Amsterdam secondary):bash
+export S3_ACCESS_KEY="<LON_KEY>|<AMS_KEY>"
+export S3_SECRET_KEY="<LON_SECRET>|<AMS_SECRET>"
+export S3_HOST_BASE="://linodeobjects.com|://linodeobjects.com"
+export S3_LOCATION="US|US"
+Use code with caution.
+• Remote Region Template (Amsterdam first so local reads hit Amsterdam):bash
+export S3_ACCESS_KEY="<AMS_KEY>|<LON_KEY>"
+export S3_SECRET_KEY="<AMS_SECRET>|<LON_SECRET>"
+export S3_HOST_BASE="://linodeobjects.com|://linodeobjects.com"
+export S3_LOCATION="US|US"
+Use code with caution.
+(Refer to the ADT Datastore Operational Protocols for exact multi-region chain behavior).
+
+2. Primary Region: Capture CDC & Push with PutToDatastore.sh
+
+Instead of having Debezium write directly to S3, configure Debezium Server to write JSON change events to a local staging directory (e.g., /var/tmp/cdc-out/), rotating files every few seconds with sequence-prefixed filenames (00000001.jsonl, 00000002.jsonl).
+Then run a lightweight shipper loop (or cron job) on your primary-region database/worker node that mounts your CDC bucket across regions and pushes each completed batch using PutToDatastore.sh in distributed mode: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/AuthenticatorMachines)
+bash
+#!/bin/sh
+BUCKET_NAME="cdc-tx-stream"
+STAGE_DIR="/var/tmp/cdc-out"
+
+# Ensure the bucket exists across all configured regions
+${HOME}/services/datastore/operations/MountDatastore.sh "${BUCKET_NAME}" "distributed"
+
+for file in $(ls -1 "${STAGE_DIR}"/*.jsonl 2>/dev/null | sort); do
+    filename=$(basename "${file}")
+    
+    # Push to ALL regions in the S3 chain ("distributed") and delete local file ("yes")
+    ${HOME}/services/datastore/operations/PutToDatastore.sh \
+        "${BUCKET_NAME}" \
+        "${file}" \
+        "tx/${filename}" \
+        "distributed" \
+        "yes"
+done
+Use code with caution.
+• Why "distributed" matters: ADT loops through every configured S3 endpoint and uploads the transaction batch to both your primary and remote Linode Object Storage buckets in one call.
+
+3. Remote Region: Pull & Apply with GetFromDatastore.sh
+
+On the remote region's database/worker node, poll your local region's replicated bucket (://linodeobjects.com) using ListFromDatastore.sh and GetFromDatastore.sh. Because GetFromDatastore.sh always reads from the first credential in your chain (.s5cfg-1), cross-region network fetches are avoided during replay.
+bash
+#!/bin/sh
+BUCKET_NAME="cdc-tx-stream"
+WORK_DIR="/var/tmp/cdc-in"
+STATE_FILE="${HOME}/runtime/last_applied_tx.seq"
+mkdir -p "${WORK_DIR}"
+touch "${STATE_FILE}"
+
+LAST_APPLIED=$(cat "${STATE_FILE}")
+
+# List objects in the local region bucket and sort lexicographically
+OBJECTS=$(${HOME}/services/datastore/operations/ListFromDatastore.sh "${BUCKET_NAME}" "tx/" | awk '{print $NF}' | sort)
+
+for obj_path in ${OBJECTS}; do
+    filename=$(basename "${obj_path}")
+    [ -z "${filename}" ] && continue
+
+    # Skip already-applied batches
+    if [ "${filename}" \> "${LAST_APPLIED}" ]; then
+        local_file="${WORK_DIR}/${filename}"
+
+        # Pull from local region datastore
+        ${HOME}/services/datastore/operations/GetFromDatastore.sh \
+            "${BUCKET_NAME}" \
+            "tx/${filename}" \
+            "${local_file}"
+
+        if [ -f "${local_file}" ]; then
+            # Convert Debezium JSON events into idempotent SQL and execute
+            python3 ${HOME}/utilities/cdc/apply_debezium_batch.py "${local_file}" && {
+                echo "${filename}" > "${STATE_FILE}"
+                rm -f "${local_file}"
+            }
+        fi
+    fi
+done
+Use code with caution.
+
+4. Connecting the Applier to Linode Managed Databases in ADT
+
+In ADT, DBaaS credentials and connection helpers are already wired into your deployed nodes: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
+• Database Connection: Inside apply_debezium_batch.py (or a shell wrapper), source ADT's database configuration variables or invoke ADT's existing connection wrappers (${HOME}/utilities/remote/ConnectToRemotePostgresDB.sh or ConnectToMySQLDB.sh) to get the remote Managed Database host, port, username, password, and SSL certificate path. [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ConnectingToCurrentDatabase)
+• Firewall Access: Ensure the remote worker node's IP (or VPC range) is allowed on your remote Linode Managed Database firewall—similar to how ADT's Multi-Region Operations manages cross-region DBaaS allow lists.
+• Cleanup: Schedule a periodic retention cleanup on the remote node using DeleteFromDatastore.sh (in "local" or "distributed" mode) once objects are older than your recovery window.
+If you'd like the ready-to-use application.properties for Debezium Server and the apply_debezium_batch.py applier script, let me know:
+• Whether your Managed Database is MySQL or PostgreSQL
+• Which ADT machine role (webserver, database node, or dedicated worker) you plan to run the shipper and applier on

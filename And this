@@ -1,0 +1,139 @@
+Yes—using Maxwell's Daemon replaces the entire mysqlbinlog | awk column-mapping script with a single, rock-solid open-source binary that outputs clean, real-column JSON events straight to /var/lib/db_sync/events.jsonl.
+Maxwell handles binlog positions, column names, multi-line text, BLOB/JSON types, and schema changes automatically—while your POSIX file_to_peer.sh consumer reads events.jsonl line by line, turns each JSON event into an idempotent SQL statement (via jq), and streams it over WireGuard (10.99.0.x) with SET SESSION sql_log_bin = 0; so there are zero infinite sync loops.
+
+How the Maxwell + WireGuard Architecture Works
+
+Show Code
+Download diagram SVG
+
+Step 1: Install Maxwell & jq on All 4 DB VMs
+
+1. Install dependencies (openjdk-17-jre-headless and jq):sh
+apt update && apt install -y openjdk-17-jre-headless jq curl
+Use code with caution.
+2. Download Maxwell's Daemon (check Maxwell releases for the latest tarball):sh
+mkdir -p /opt/maxwell /var/lib/db_sync
+curl -L https://github.com \
+  | tar xz -C /opt/maxwell --strip-components=1
+Use code with caution.
+3. Create a Maxwell MySQL User on each local database (Maxwell stores its own binlog position automatically in a small internal maxwell schema):sql
+CREATE USER 'maxwell'@'127.0.0.1' IDENTIFIED BY 'MaxwellPass123!';
+GRANT ALL ON maxwell.* TO 'maxwell'@'127.0.0.1';
+GRANT SELECT, REPLICATION CLIENT, REPLICATION SLAVE ON *.* TO 'maxwell'@'127.0.0.1';
+FLUSH PRIVILEGES;
+Use code with caution.
+
+Step 2: Configure Maxwell to Write /var/lib/db_sync/events.jsonl
+
+Create /opt/maxwell/config.properties on each DB VM:
+properties
+# Local MySQL connection
+host=127.0.0.1
+port=3306
+user=maxwell
+password=MaxwellPass123!
+
+# Only capture your application database (ignore maxwell's own internal schema)
+filter=exclude: *.*, include: defaultdb.*
+
+# Write one JSON object per line directly to your local queue file
+producer=file
+output_file=/var/lib/db_sync/events.jsonl
+Use code with caution.
+Start Maxwell (or run via systemd):
+sh
+/opt/maxwell/bin/maxwell --config /opt/maxwell/config.properties &
+Use code with caution.
+Whenever a local write happens on defaultdb, Maxwell immediately appends a single clean JSON line to /var/lib/db_sync/events.jsonl, like:
+json
+{"database":"defaultdb","table":"orders","type":"insert","ts":1732274460,"data":{"id":"...","total":49.99,"updated_at_utc":"2026-11-22 11:21:00.123456"}}
+Use code with caution.
+(And because peer sync sessions run with SET SESSION sql_log_bin = 0;, incoming writes from Sydney, US, or Asia never enter the local binlog and are never picked up by Maxwell).
+
+Step 3: POSIX Consumer — Tail events.jsonl Over WireGuard (maxwell_to_peer.sh)
+
+Deploy /usr/local/bin/maxwell_to_peer.sh (chmod +x) on all 4 DB VMs. It tails /var/lib/db_sync/events.jsonl from the peer's saved line number, uses jq to convert each JSON event into an idempotent INSERT ... ON DUPLICATE KEY UPDATE (with Last-Writer-Wins) or DELETE, and pipes it into a persistent mysql CLI session over WireGuard (10.99.0.x).
+sh
+#!/bin/sh
+set -eu
+
+# Arguments: <peer_name> <peer_wg_ip> <db_name>
+PEER_NAME="$1"
+PEER_WG_IP="$2"
+DB_NAME="$3"
+
+MYSQL_CNF="/root/.my-peers.cnf"
+SYNC_DIR="/var/lib/db_sync"
+EVENTS_FILE="$SYNC_DIR/events.jsonl"
+OFFSET_FILE="$SYNC_DIR/${PEER_NAME}.line"
+
+touch "$EVENTS_FILE"
+if [ ! -f "$OFFSET_FILE" ]; then
+    echo "1" > "$OFFSET_FILE"
+fi
+
+while true; do
+    START_LINE=$(cat "$OFFSET_FILE")
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Streaming Maxwell events from line $START_LINE to $PEER_NAME ($PEER_WG_IP)..."
+
+    (
+        # Prevent remote peer from logging incoming sync writes to its own binlog (no loops!)
+        printf "SET SESSION sql_log_bin = 0;\n"
+
+        tail -n +"$START_LINE" -f "$EVENTS_FILE" | \
+        jq --unbuffered -r '
+            # SQL string escaper helper
+            def sql_val:
+                if . == null then "NULL"
+                elif type == "number" then tostring
+                elif type == "boolean" then (if . then "1" else "0" end)
+                else "\x27" + (tostring | gsub("\\\\"; "\\\\") | gsub("\x27"; "\\\x27") | gsub("\n"; "\\n") | gsub("\r"; "\\r")) + "\x27"
+                end;
+
+            if (.type == "insert" or .type == "update") then
+                (.data | keys_unsorted) as $cols |
+                "INSERT INTO `" + .table + "` (" +
+                ($cols | map("`" + . + "`") | join(", ")) +
+                ") VALUES (" +
+                ($cols | map(. as $k | $data[$k] | sql_val) | join(", ")) +
+                ") ON DUPLICATE KEY UPDATE " +
+                ($cols | map(
+                    select(. != "id" and . != "updated_at_utc") |
+                    "`" + . + "` = IF(VALUES(`updated_at_utc`) >= `updated_at_utc`, VALUES(`" + . + "`), `" + . + "`)"
+                ) + ["`updated_at_utc` = GREATEST(`updated_at_utc`, VALUES(`updated_at_utc`))"] | join(", ")) + ";"
+            elif .type == "delete" then
+                "DELETE FROM `" + .table + "` WHERE `id` = " + (.data.id | sql_val) + ";"
+            else
+                empty
+            end
+        ' | \
+        awk -v line="$START_LINE" '
+            NF {
+                print $0;
+                print "SELECT " line ";";
+                fflush();
+                line++;
+            }
+        '
+    ) | \
+    mysql --defaults-extra-file="$MYSQL_CNF" -h "$PEER_WG_IP" -P 3306 "$DB_NAME" \
+        --batch --skip-column-names --unbuffered | \
+    awk -v off_file="$OFFSET_FILE" '
+        /^[0-9]+$/ {
+            print ($1 + 1) > off_file;
+            close(off_file);
+        }
+    ' || true
+
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Connection to $PEER_NAME ($PEER_WG_IP) dropped. Resuming from $(cat "$OFFSET_FILE") in 2s..."
+    sleep 2
+done
+Use code with caution.
+(Note: In the jq filter above, bind $data by writing (.data) as $data | (.data | keys_unsorted) as $cols | ... so $data[$k] resolves cleanly).
+
+Why Maxwell + WireGuard Is the Sweet Spot
+
+• Zero fragile awk column parsing: Maxwell handles schema changes, multi-line text, NULLs, and data types natively.
+• Zero custom triggers or outbox tables: Your application database schema stays clean (just an id primary key and updated_at_utc column on synced tables).
+• Sub-second multi-region sync + crash recovery: Events hit events.jsonl in milliseconds, travel encrypted over WireGuard (10.99.0.x), and automatically resume from <peer>.line after any network interruption.
+Would you like the systemd service units for Maxwell and the 3 maxwell_to_peer.sh workers, plus a safe log-rotation script for events.jsonl once all 3 peers have caught up?

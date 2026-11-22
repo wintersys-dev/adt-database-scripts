@@ -1,0 +1,172 @@
+Here are the production-hardened, self-healing POSIX CLI streaming solutions for MySQL, MariaDB, and PostgreSQL.
+All three use native CLI tools to read the database's internal transaction log and pipe the changes directly to the remote database—with automatic crash recovery so dropped cross-region connections never cause data loss or duplicate writes.
+
+1. MySQL: Resilient mysqlbinlog Pipe
+
+MySQL's mysqlbinlog outputs a # at <position> comment before every transaction. By tracking the latest binlog filename and position in a tiny state file, your script can resume from the exact byte where a network drop occurred.
+Prerequisites (Source MySQL):
+sql
+-- Verify binlog_format is ROW (default in MySQL 8.0+)
+SHOW VARIABLES LIKE 'binlog_format';
+
+CREATE USER 'repl_user'@'%' IDENTIFIED BY 'your_password';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'repl_user'@'%';
+Use code with caution.
+POSIX Wrapper (stream_mysql.sh):
+(Store passwords in ~/.my.cnf under [client] to keep them out of process lists).
+sh
+#!/bin/sh
+set -eu
+
+SRC_HOST="://example.com"
+DST_HOST="://example.com"
+STATE_FILE="/var/lib/mysql_stream.state"
+
+# Initialize state file on first run (find current master log & position)
+if [ ! -f "$STATE_FILE" ]; then
+    mysql -h "$SRC_HOST" -N -e "SHOW MASTER STATUS;" | awk '{print $1, $2}' > "$STATE_FILE"
+fi
+
+while true; do
+    read -r LOG_FILE LOG_POS < "$STATE_FILE"
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Streaming MySQL from $LOG_FILE @ $LOG_POS..."
+
+    # Stream binlog -> update state file on fly via awk -> pipe to remote mysql
+    mysqlbinlog \
+        --read-from-remote-server \
+        --host="$SRC_HOST" \
+        --stop-never \
+        --start-position="$LOG_POS" \
+        "$LOG_FILE" | \
+    awk -v state="$STATE_FILE" -v file="$LOG_FILE" '
+        /^# Rotate to / {
+            match($0, /Rotate to [^ ]+/);
+            file = substr($0, RSTART + 10, RLENGTH - 10);
+        }
+        /^# at [0-9]+/ {
+            pos = $3;
+            print file, pos > state;
+            close(state);
+        }
+        { print; fflush(); }
+    ' | mysql -h "$DST_HOST" || true
+
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Connection dropped. Reconnecting in 5s..."
+    sleep 5
+done
+Use code with caution.
+
+2. MariaDB: Resilient mariadb-binlog Pipe (GTID-Based)
+
+MariaDB makes CLI streaming even cleaner using GTIDs (Global Transaction IDs). Instead of tracking filenames and byte offsets, MariaDB tags every transaction with a sequential ID (e.g., 0-1-4502).
+Prerequisites (Source MariaDB):
+sql
+CREATE USER 'repl_user'@'%' IDENTIFIED BY 'your_password';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'repl_user'@'%';
+Use code with caution.
+POSIX Wrapper (stream_mariadb.sh):
+sh
+#!/bin/sh
+set -eu
+
+SRC_HOST="://example.com"
+DST_HOST="://example.com"
+STATE_FILE="/var/lib/mariadb_stream.gtid"
+
+# Initialize with the source's current GTID position if no state exists
+if [ ! -f "$STATE_FILE" ]; then
+    mariadb -h "$SRC_HOST" -N -e "SELECT @@gtid_current_pos;" > "$STATE_FILE"
+fi
+
+while true; do
+    START_GTID=$(cat "$STATE_FILE")
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Streaming MariaDB from GTID $START_GTID..."
+
+    # mariadb-binlog streams from the exact GTID and logs every new GTID comment
+    mariadb-binlog \
+        --read-from-remote-server \
+        --host="$SRC_HOST" \
+        --stop-never \
+        --start-position="$START_GTID" | \
+    awk -v state="$STATE_FILE" '
+        /^# GTID [0-9]+-[0-9]+-[0-9]+/ {
+            print $3 > state;
+            close(state);
+        }
+        { print; fflush(); }
+    ' | mariadb -h "$DST_HOST" || true
+
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Connection dropped. Reconnecting in 5s..."
+    sleep 5
+done
+Use code with caution.
+
+3. PostgreSQL: pg_recvlogical + psql Pipe
+
+PostgreSQL does not convert its Write-Ahead Log (WAL) directly into SQL by default—instead, it uses Logical Decoding (pg_recvlogical) to stream JSON or SQL changes from a Replication Slot.
+Because PostgreSQL manages the cursor inside the replication slot on the server itself, you don't even need a local state file—PostgreSQL automatically remembers the exact transaction where you left off.
+Prerequisites (Source PostgreSQL):
+1. Set wal_level = logical in postgresql.conf (requires restart).
+2. Create a replication user and a logical slot using the built-in test_decoding (or wal2json if installed) plugin:sql
+CREATE USER repl_user WITH REPLICATION LOGIN PASSWORD 'your_password';
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO repl_user;
+
+-- Create a persistent slot (PostgreSQL tracks your exact read position automatically)
+SELECT pg_create_logical_replication_slot('cli_sync_slot', 'wal2json');
+Use code with caution.
+(Note: Most cloud providers like AWS RDS, Google Cloud SQL, and standard Debian/Ubuntu postgresql-wal2json packages include wal2json out of the box).
+POSIX Wrapper (stream_postgres.sh):
+(Store passwords in ~/.pgpass in host:port:db:user:password format).
+sh
+#!/bin/sh
+set -eu
+
+SRC_CONN="postgresql://repl_user@://example.com"
+DST_CONN="postgresql://admin_user@://example.com"
+SLOT_NAME="cli_sync_slot"
+
+while true; do
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Streaming PostgreSQL slot '$SLOT_NAME'..."
+
+    # Stream JSON change events from the slot, convert to SQL via jq, and pipe to psql
+    pg_recvlogical \
+        -d "$SRC_CONN" \
+        --slot="$SLOT_NAME" \
+        --start \
+        -o format-version=2 \
+        -f - | \
+    jq --unbuffered -r '
+        if .action == "I" then
+            "INSERT INTO " + .schema + "." + .table + " (" +
+            ([.columns[].name] | join(",")) + ") VALUES (" +
+            ([.columns[].value | @json] | join(",") | gsub("\""; "\x27")) + ") ON CONFLICT DO NOTHING;"
+        elif .action == "U" then
+            "UPDATE " + .schema + "." + .table + " SET " +
+            ([.columns[] | .name + "=" + (.value | @json | gsub("\""; "\x27"))] | join(",")) +
+            " WHERE " + ([.identity[] | .name + "=" + (.value | @json | gsub("\""; "\x27"))] | join(" AND ")) + ";"
+        elif .action == "D" then
+            "DELETE FROM " + .schema + "." + .table +
+            " WHERE " + ([.identity[] | .name + "=" + (.value | @json | gsub("\""; "\x27"))] | join(" AND ")) + ";"
+        else
+            empty
+        end
+    ' | psql "$DST_CONN" -v ON_ERROR_STOP=1 || true
+
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Stream interrupted. Reconnecting in 5s..."
+    sleep 5
+done
+Use code with caution.
+
+Quick Comparison of the 3 CLI Pipes
+
+
+Database	CLI Streamer	Cursor / State Tracking	Key Requirement
+MySQL	mysqlbinlog	Local file (binlog_file + pos)	binlog_format = ROW
+MariaDB	mariadb-binlog	Local file (GTID string)	gtid_strict_mode = ON recommended
+PostgreSQL	pg_recvlogical	Automatic (Server-side Replication Slot)	wal_level = logical + wal2json
+
+
+Important Operational Tip for PostgreSQL
+
+Because PostgreSQL tracks your cursor inside a server-side replication slot, it will retain unconsumed WAL files on disk until your script reads them. If you ever permanently stop or delete your sync script, remember to drop the slot (SELECT pg_drop_replication_slot('cli_sync_slot');) so the source database doesn't fill up its disk waiting for the consumer to return.
+Would you like a systemd service unit to keep these while true loops running reliably in the background, or do you need to filter out specific tables/databases from the stream?

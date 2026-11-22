@@ -1,0 +1,387 @@
+
+Here is the complete, end-to-end MySQL + POSIX Shell (/bin/sh) solution—including the database triggers, the 1-minute sender script, and a pure POSIX CGI/HTTP receiver script to ingest and apply the deltas on the remote region.
+
+Part 1: Source & Target Database Setup (MySQL 8.0+)
+
+Run this on your source database to create the outbox table and capture changes. (Note: MySQL triggers must be created per table and per operation).
+sql
+-- 1. Create the append-only outbox table on the SOURCE database
+CREATE TABLE delta_outbox (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    table_name VARCHAR(64) NOT NULL,
+    operation VARCHAR(10) NOT NULL, -- 'INSERT', 'UPDATE', 'DELETE'
+    row_id VARCHAR(255) NOT NULL,
+    row_data JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Create triggers for your table (Example: 'orders')
+-- Note: MySQL doesn't have to_jsonb(NEW), so you list the columns explicitly.
+-- Checking @is_sync_worker prevents infinite loops if you ever do two-way sync.
+
+DELIMITER //
+
+CREATE TRIGGER orders_after_insert
+AFTER INSERT ON orders
+FOR EACH ROW
+BEGIN
+    IF IFNULL(@is_sync_worker, 0) = 0 THEN
+        INSERT INTO delta_outbox (table_name, operation, row_id, row_data)
+        VALUES (
+            'orders', 
+            'INSERT', 
+            NEW.id, 
+            JSON_OBJECT('id', NEW.id, 'customer_id', NEW.customer_id, 'total', NEW.total, 'status', NEW.status)
+        );
+    END IF;
+END//
+
+CREATE TRIGGER orders_after_update
+AFTER UPDATE ON orders
+FOR EACH ROW
+BEGIN
+    IF IFNULL(@is_sync_worker, 0) = 0 THEN
+        INSERT INTO delta_outbox (table_name, operation, row_id, row_data)
+        VALUES (
+            'orders', 
+            'UPDATE', 
+            NEW.id, 
+            JSON_OBJECT('id', NEW.id, 'customer_id', NEW.customer_id, 'total', NEW.total, 'status', NEW.status)
+        );
+    END IF;
+END//
+
+CREATE TRIGGER orders_after_delete
+AFTER DELETE ON orders
+FOR EACH ROW
+BEGIN
+    IF IFNULL(@is_sync_worker, 0) = 0 THEN
+        INSERT INTO delta_outbox (table_name, operation, row_id, row_data)
+        VALUES (
+            'orders', 
+            'DELETE', 
+            OLD.id, 
+            JSON_OBJECT('id', OLD.id)
+        );
+    END IF;
+END//
+
+DELIMITER ;
+Use code with caution.
+
+Part 2: The Sender Script (send_deltas.sh)
+
+Run this on the source region via cron every minute. It uses MySQL's native JSON_OBJECT and JSON_ARRAYAGG to build a clean JSON payload without shell-escaping bugs.
+(Tip: Store your MySQL credentials in ~/.my.cnf so passwords don't appear in ps output).
+sh
+#!/bin/sh
+set -eu
+
+# Configuration
+MYSQL_CNF="$HOME/.my.cnf"
+DB_NAME="mydb"
+REMOTE_SYNC_URL="https://example.com"
+API_KEY="your-secret-sync-token"
+BATCH_SIZE=5000
+
+TMP_DIR=$(mktemp -d)
+PAYLOAD_FILE="$TMP_DIR/payload.json"
+IDS_FILE="$TMP_DIR/ids.txt"
+LOCK_FILE="/tmp/mysql_delta_sync.lock"
+
+cleanup() {
+    rm -rf "$TMP_DIR"
+    rmdir "$LOCK_FILE" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Atomic POSIX lock
+if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Sync already running. Exiting."
+    exit 0
+fi
+
+# 1. Fetch oldest batch as a single JSON line (--raw prevents escaping quotes)
+mysql --defaults-extra-file="$MYSQL_CNF" -D "$DB_NAME" --batch --raw --skip-column-names <<EOF > "$PAYLOAD_FILE"
+SET SESSION group_concat_max_len = 104857600;
+SELECT COALESCE(
+    JSON_OBJECT(
+        'event_ids', JSON_ARRAYAGG(event_id),
+        'events', JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'event_id', event_id,
+                'table_name', table_name,
+                'operation', operation,
+                'row_id', row_id,
+                'row_data', row_data
+            )
+        )
+    ),
+    ''
+)
+FROM (
+    SELECT event_id, table_name, operation, row_id, row_data
+    FROM delta_outbox
+    ORDER BY event_id ASC
+    LIMIT $BATCH_SIZE
+) AS batch;
+EOF
+
+# Exit if empty or NULL
+if [ ! -s "$PAYLOAD_FILE" ] || [ "$(cat "$PAYLOAD_FILE")" = "NULL" ]; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - No new deltas."
+    exit 0
+fi
+
+# Extract event_ids list for deletion
+sed -n 's/.*"event_ids": *\[\([^]]*\)\].*/\1/p' "$PAYLOAD_FILE" > "$IDS_FILE"
+EVENT_IDS=$(cat "$IDS_FILE")
+
+if [ -z "$EVENT_IDS" ]; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Failed to parse event IDs." >&2
+    exit 1
+fi
+
+echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Shipping deltas..."
+
+# 2. Ship payload via curl
+if curl --silent --show-error --fail \
+    --max-time 30 \
+    -X POST "$REMOTE_SYNC_URL" \
+    -H "Content-Type: application/json" \
+    -H "X-API-Key: $API_KEY" \
+    --data-binary "@$PAYLOAD_FILE" > /dev/null; then
+
+    # 3. Delete synced events from outbox
+    mysql --defaults-extra-file="$MYSQL_CNF" -D "$DB_NAME" -e \
+        "DELETE FROM delta_outbox WHERE event_id IN ($EVENT_IDS);"
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Synced and cleared IDs: $EVENT_IDS"
+else
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Remote sync failed. Will retry next minute." >&2
+    exit 1
+fi
+Use code with caution.
+
+Part 3: The Receiver Script (receive_deltas.sh)
+
+Deploy this on the remote region behind any web server supporting CGI (like Nginx + fcgiwrap, Apache, or BusyBox httpd).
+Rather than parsing JSON in shell, it passes the incoming JSON straight into MySQL's native JSON_TABLE() function—allowing MySQL to parse, order, and apply all 5,000 upserts and deletes inside a single atomic transaction.
+sh
+#!/bin/sh
+set -eu
+
+MYSQL_CNF="/etc/mysql/sync_receiver.cnf"
+DB_NAME="mydb"
+EXPECTED_API_KEY="your-secret-sync-token"
+
+# Helper to send HTTP responses
+send_response() {
+    printf "Status: %s\r\nContent-Type: application/json\r\n\r\n{\"status\":\"%s\"}\n" "$1" "$2"
+    exit 0
+}
+
+# 1. Verify API Key (CGI maps header 'X-API-Key' to 'HTTP_X_API_KEY')
+if [ "${HTTP_X_API_KEY:-}" != "$EXPECTED_API_KEY" ]; then
+    send_response "401 Unauthorized" "invalid_api_key"
+fi
+
+# 2. Read incoming POST body safely to a temp file
+TMP_BODY=$(mktemp)
+trap 'rm -f "$TMP_BODY"' EXIT INT TERM
+cat > "$TMP_BODY"
+
+if [ ! -s "$TMP_BODY" ]; then
+    send_response "400 Bad Request" "empty_payload"
+fi
+
+# Escape single quotes in the raw JSON so it can be safely embedded in a SQL string literal
+ESCAPED_JSON=$(sed "s/'/''/g" "$TMP_BODY")
+
+# 3. Apply all deltas in one atomic MySQL transaction using JSON_TABLE
+if mysql --defaults-extra-file="$MYSQL_CNF" -D "$DB_NAME" <<EOF
+SET @is_sync_worker = 1;
+SET @payload = '$ESCAPED_JSON';
+
+START TRANSACTION;
+
+-- Apply all INSERTs and UPDATEs for 'orders' idempotently
+INSERT INTO orders (id, customer_id, total, status)
+SELECT jt.id, jt.customer_id, jt.total, jt.status
+FROM JSON_TABLE(
+    @payload,
+    '$.events[*]' COLUMNS (
+        event_id    BIGINT        PATH '$.event_id',
+        table_name  VARCHAR(64)   PATH '$.table_name',
+        operation   VARCHAR(10)   PATH '$.operation',
+        id          INT           PATH '$.row_data.id',
+        customer_id INT           PATH '$.row_data.customer_id',
+        total       DECIMAL(10,2) PATH '$.row_data.total',
+        status      VARCHAR(32)   PATH '$.row_data.status'
+    )
+) AS jt
+WHERE jt.table_name = 'orders'
+  AND jt.operation IN ('INSERT', 'UPDATE')
+ORDER BY jt.event_id ASC
+ON DUPLICATE KEY UPDATE
+    customer_id = VALUES(customer_id),
+    total       = VALUES(total),
+    status      = VALUES(status);
+
+-- Apply all DELETEs for 'orders'
+-- (Only delete if no subsequent INSERT/UPDATE for the same row exists in this batch)
+DELETE o FROM orders o
+JOIN (
+    SELECT jt.row_id, MAX(jt.event_id) AS last_event_id
+    FROM JSON_TABLE(
+        @payload,
+        '$.events[*]' COLUMNS (
+            event_id   BIGINT       PATH '$.event_id',
+            table_name VARCHAR(64)  PATH '$.table_name',
+            operation  VARCHAR(10)  PATH '$.operation',
+            row_id     VARCHAR(255) PATH '$.row_id'
+        )
+    ) AS jt
+    WHERE jt.table_name = 'orders'
+    GROUP BY jt.row_id
+    HAVING SUBSTRING_INDEX(
+        GROUP_CONCAT(jt.operation ORDER BY jt.event_id DESC), ',', 1
+    ) = 'DELETE'
+) AS final_deletes ON o.id = final_deletes.row_id;
+
+COMMIT;
+EOF
+then
+    send_response "200 OK" "synced"
+else
+    send_response "500 Internal Server Error" "db_apply_failed"
+fi
+Use code with caution.
+
+Part 4: Cron & Security Checklist
+
+1. Schedule the sender (crontab -e on the source server):cron
+* * * * * /usr/local/bin/send_deltas.sh >> /var/log/delta_sync.log 2>&1
+Use code with caution.
+2. Enforce HTTPS: Always run the receiver behind TLS (https://) so row data and your X-API-Key header are encrypted in transit across regions.
+3. Handle mixed Insert + Delete in the same minute: Notice how the receiver's DELETE query checks the final operation (GROUP_CONCAT(jt.operation ORDER BY jt.event_id DESC)) for each row_id in the batch. If a row was inserted at :05 seconds and deleted at :45 seconds within the same 1-minute batch, the INSERT runs first and the DELETE cleans it up immediately afterward.
+Would you like to add gzip compression to the curl payload (useful if your 1-minute batches get large across regions), or adapt the receiver for multiple tables?
+
+
+Here is the POSIX-compliant shell script (/bin/sh) equivalent of the delta worker.
+To avoid complex JSON escaping in shell, this script asks PostgreSQL to build the JSON payload natively using json_agg(), streams it straight to curl, and only deletes the rows if curl receives an HTTP 200–299 status code.
+
+Prerequisites
+
+• psql (PostgreSQL client)
+• curl
+• Standard POSIX utilities (flock or a PID lockfile if running via cron)
+
+1. The POSIX Sync Script (sync_deltas.sh)
+
+Save this script and make it executable (chmod +x sync_deltas.sh):
+sh
+#!/bin/sh
+set -eu
+
+# Configuration
+DB_DSN="postgresql://user:password@source-db-host:5432/mydb"
+REMOTE_SYNC_URL="https://example.com"
+API_KEY="your-secret-sync-token"
+BATCH_SIZE=5000
+
+# Create secure temporary files and ensure cleanup on exit
+TMP_DIR=$(mktemp -d)
+PAYLOAD_FILE="$TMP_DIR/payload.json"
+IDS_FILE="$TMP_DIR/ids.txt"
+LOCK_FILE="/tmp/delta_sync.lock"
+
+cleanup() {
+    rm -rf "$TMP_DIR"
+    rmdir "$LOCK_FILE" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Prevent overlapping runs using atomic mkdir (POSIX-compliant locking)
+if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Another sync is already running. Exiting."
+    exit 0
+fi
+
+# 1. Fetch oldest batch as a ready-to-send JSON object and save event IDs
+psql "$DB_DSN" -X -q -t -A <<EOF > "$PAYLOAD_FILE"
+WITH batch AS (
+    SELECT event_id, table_name, operation, row_id, row_data, created_at
+    FROM delta_outbox
+    ORDER BY event_id ASC
+    LIMIT $BATCH_SIZE
+)
+SELECT COALESCE(
+    json_build_object(
+        'event_ids', json_agg(event_id ORDER BY event_id),
+        'events', json_agg(
+            json_build_object(
+                'event_id', event_id,
+                'table_name', table_name,
+                'operation', operation,
+                'row_id', row_id,
+                'row_data', row_data,
+                'created_at', created_at
+            ) ORDER BY event_id
+        )
+    )::text,
+    ''
+)
+FROM batch;
+EOF
+
+# Exit early if the outbox is empty
+if [ ! -s "$PAYLOAD_FILE" ]; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - No new deltas to sync."
+    exit 0
+fi
+
+# Extract the comma-separated list of event_ids for deletion later
+# (Grabs the array right after "event_ids":[ and strips brackets)
+sed -n 's/.*"event_ids":\[\([^]]*\)\].*/\1/p' "$PAYLOAD_FILE" > "$IDS_FILE"
+
+if [ ! -s "$IDS_FILE" ]; then
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Error parsing event IDs. Aborting." >&2
+    exit 1
+fi
+
+EVENT_IDS=$(cat "$IDS_FILE")
+echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Shipping delta batch..."
+
+# 2. Ship the JSON payload to the remote region
+# --fail ensures curl returns a non-zero exit code on HTTP 4xx/5xx errors
+if curl --silent --show-error --fail \
+    --max-time 30 \
+    -X POST "$REMOTE_SYNC_URL" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $API_KEY" \
+    --data-binary "@$PAYLOAD_FILE" > /dev/null; then
+
+    # 3. Delete processed events ONLY if curl succeeded
+    psql "$DB_DSN" -X -q -c "DELETE FROM delta_outbox WHERE event_id IN ($EVENT_IDS);"
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Sync complete. Cleared events: $EVENT_IDS"
+else
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - Failed to ship deltas. Events retained for next run." >&2
+    exit 1
+fi
+Use code with caution.
+
+2. Running It Every Minute (cron)
+
+Because the script uses a POSIX mkdir lock and exits cleanly after each run, you can trigger it directly via crontab -e:
+cron
+* * * * * /path/to/sync_deltas.sh >> /var/log/delta_sync.log 2>&1
+Use code with caution.
+
+Key POSIX Design Choices
+
+• Zero JSON Escaping Bugs: Letting PostgreSQL construct the JSON payload via json_build_object and json_agg avoids fragile string manipulation in sh and safely handles quotes, newlines, and nested JSON inside row_data.
+• Atomic Locking (mkdir): Standard flock isn't strictly POSIX. Using mkdir "$LOCK_FILE" is an atomic filesystem operation across all POSIX systems, ensuring two cron jobs never process the same batch if a network request takes longer than 60 seconds.
+• Safe --data-binary: Passing @$PAYLOAD_FILE to curl streams the file directly from disk, avoiding shell ARG_MAX command-line length limits when syncing large 5,000-row batches.
+Would you like me to adjust this for MySQL (using the mysql CLI instead of psql), or write the receiver-side script/endpoint that ingests this JSON payload?
+
+

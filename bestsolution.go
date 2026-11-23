@@ -8,15 +8,13 @@ It includes all production safeguards:
 
 1. Project Setup (bash)
 
-Download your Linode Managed Database CA certificate (ca.pem) from the Linode Cloud Manager and initialize the Go module:
+The Cleanest Way to Install the Dependencies
+
+Once you have saved config.go, handler.go, applier.go, and main.go inside /opt/binlog_sync, run these three commands:
 bash
-mkdir -p /opt/binlog_sync && cd /opt/binlog_sync
+cd /opt/binlog_sync
 go mod init binlog-fanout
-go get ://github.com \
-       ://github.com \
-       ://github.com \
-       ://github.com
-Use code with caution.
+go mod tidy
 
 2. Configuration Files (source.json & targets.json)
 

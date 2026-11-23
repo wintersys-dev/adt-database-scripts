@@ -103,6 +103,56 @@ If you'd like to harden this setup for production, let me know:
 • Whether your DBaaS tier has strict connection or IOPS limits (as database triggers add write overhead)
 
 
+For Joomla running across 4 active-active regions in the Agile Deployment Toolkit (ADT), you should exclude session, cache, scheduling, and transient log tables from SymmetricDS replication. Replicating these tables causes massive write amplification, row-locking conflicts, and race conditions when users are routed to a specific regional cluster.
+(Note: Replace #__ with your actual Joomla table prefix, such as jos_.)
+
+1. Core Joomla Tables to Exclude (SYM_TRIGGER Exclusions)
+
+
+Table Name	Why It Must Be Region-Specific
+#__session	Critical. Joomla writes to this table on almost every page load. Replicating it across 4 regions creates massive IOPS overhead and causes session hijacking/logout loops if a user's session timestamp overwrites another region. Keep sessions local to each region (and use sticky regional DNS).
+#__finder_tokens & #__finder_tokens_aggregate	Temporary Smart Search indexing tables used while building search indexes. Syncing them creates deadlocks; only sync the final #__finder_links* and #__finder_terms* tables.
+#__scheduler_tasks & #__scheduler_logs	Joomla's built-in Scheduled Tasks (cron). If synced, all 4 regions will try to claim, lock, and run the exact same background cron jobs simultaneously. Keep scheduled tasks isolated per region or run cron only on Region 1.
+#__action_logs	High-volume audit trail of admin/user clicks. Syncing high-frequency append-only logs wastes cross-region bandwidth and slows down primary content channels.
+#__redirect_links	Joomla’s Redirect plugin auto-logs every 404 URL hit in real time. Under bot scans, this floods SymmetricDS batches with thousands of useless 404 records.
+#__overrider	Temporary language string override cache used when searching language constants in the administrator backend.
+#__updates & #__update_sites	Stores local extension update check caches. Each region's webserver should check or suppress updates independently rather than fighting over cache timestamps.
+
+
+2. Common Third-Party Joomla Extension Tables to Watch For
+
+If your ADT build installs popular Joomla extensions, also exclude their local security/cache tables:
+• Admin Tools (#__admintools_log, #__admintools_ipautoban, #__admintools_sessions): Local WAF blocks and brute-force counters generate heavy write bursts during bot attacks.
+• Akeeba Backup (#__ak_stats, #__ak_storage): Backup logs are specific to the local ADT Database Machine performing backups in that region.
+• Securitycheck / RSFirewall logs: Any local firewall intrusion log tables.
+
+3. How to Configure Exclusions in SymmetricDS
+
+Instead of manually listing all 70+ Joomla core tables, use a wildcard trigger (*) for your prefix and supply a comma-separated exclusion list using the ! prefix in SYM_TRIGGER.source_table_name:
+sql
+INSERT INTO SYM_TRIGGER (
+    trigger_id, 
+    source_table_name, 
+    channel_id, 
+    sync_on_incoming_batch, 
+    last_update_time, 
+    create_time
+) VALUES (
+    'joomla_core_tables',
+    'jos_*,!jos_session,!jos_finder_tokens,!jos_finder_tokens_aggregate,!jos_scheduler_tasks,!jos_scheduler_logs,!jos_action_logs,!jos_redirect_links,!jos_overrider,!jos_updates',
+    'app_data',
+    0,
+    current_timestamp,
+    current_timestamp
+);
+Use code with caution.
+
+Bonus Joomla Tip for Multi-Region ADT
+
+To completely eliminate #__session database load on your DBaaS instances, configure Joomla's configuration.php via ADT's templating engine to use Filesystem or Redis ($session_handler = 'filesystem';) instead of 'database'—since ADT's Geo-DNS/load balancer keeps users pinned to one region anyway.
+If you'd like to refine the Joomla channel setup, let me know:
+• Which Joomla version (Joomla 4, 5, or 6) and major extensions (e.g., VirtueMart, JomSocial, Community Builder) your ADT deployment uses
+• Whether you want to split Joomla content (#__content) and users (#__users) onto separate priority channels
 
 
 To integrate SymmetricDS across four regional DBaaS instances in Peter Charles Winter’s Agile Deployment Toolkit (ADT), I would deploy SymmetricDS directly on the ADT "Database Machine" (the utility/backup VM) in each region rather than modifying the managed DBaaS layers themselves.

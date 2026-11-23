@@ -1,27 +1,27 @@
 #!/bin/sh
 #: Name:        CloneRepository.sh
-#: Purpose:     Orchestrates repository cloning across configured Git providers.
+#: Purpose:     Orchestrates repository cloning across configured Git providers on a webserver machine.
 #: Author:      Peter Winter
-#: Date:        18/11/2026
+#: Date:        22/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CloneRepository.sh <repository_provider> <repository_ownername> <repository_name> <repository_branch> <destination_directory>
+#: Usage:       CloneRepository.sh <repository_name> <repository_branch> <destination_directory> [repository_provider] [repository_ownername]
 #:              CloneRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] The Git provider name (e.g. bitbucket, github, gitlab).
-#:   $2         [Required] The workspace or repository owner name.
-#:   $3         [Required] The name/slug of the repository to clone.
-#:   $4         [Required] The target branch name to clone.
-#:   $5         [Required] The local destination directory path.
+#:   $1         [Required] The name/slug of the repository to clone.
+#:   $2         [Required] The target branch name to clone.
+#:   $3         [Required] The local destination directory path.
+#:   $4         [Optional] The Git provider name (e.g. bitbucket, github, gitlab).
+#:   $5         [Optional] The workspace or repository owner name.
 #:
 #: Environment:
-#:   HOME       Resolved automatically from /home/homedir.dat
+#:   HOME       Root directory of the ADT webserver scripts (e.g. /root)
 #:
 #: Dependencies:
-#:   - /home/homedir.dat
-#:   - ${HOME}/services/git/${repository_provider}/GitClone.sh
-#:   - External binaries: cat, echo, grep, cut
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/git/${repository_provider}/CloneRepository.sh
+#:   - External binaries: echo, grep, cut
 #:
 #: Exit Codes:
 #:   0          Repository cloned cleanly by provider sub-driver
@@ -60,19 +60,39 @@ else
         exit 1
 fi
 
-# Validate minimum required positional arguments
-if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ] || [ -z "${5}" ]
+# Verify HOME is set and points to the ADT webserver directory
+if [ -z "${HOME}" ] 
 then
-        /bin/echo "Error: 5 arguments are required with 1 optional argument." >&2
-        /bin/echo "Usage: $0 <repository_provider> <repository_ownername> <repository_name> <repository_branch> <destination_directory>" >&2
+        /bin/echo "Webserver toolkit root directory not found at ${HOME}" >&2
         exit 1
 fi
 
-repository_provider="${1:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')}"
-repository_ownername="${2}"
-repository_name="${3}"
-repository_branch="${4}"
-destination_directory="${5}"
+# Validate minimum required positional arguments
+if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ]
+then
+        /bin/echo "Error: 3 arguments are required with 2 optional arguments." >&2
+        /bin/echo "Usage: $0 <repository_name> <repository_branch> <destination_directory> [repository_provider] [repository_ownername]" >&2
+        exit 1
+fi
+
+repository_name="${1}"
+repository_branch="${2}"
+destination_directory="${3}"
+
+# Extract defaults from webserver configuration if optional parameters are omitted
+if [ -n "${4}" ]
+then
+        repository_provider="${4}"
+else
+        repository_provider="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'APPLICATIONREPOSITORYPROVIDER')"
+fi
+
+if [ -n "${5}" ]
+then
+        repository_ownername="${5}"
+else
+        repository_ownername="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'APPLICATIONREPOSITORYOWNER')"
+fi
 
 # Verify provider sub-driver script exists and is executable before delegating
 provider_script="${HOME}/services/git/${repository_provider}/CloneRepository.sh"
@@ -91,7 +111,7 @@ fi
 
 # Delegate clone operation to the provider-specific sub-driver
 set +e
-"${provider_script}" "${repository_ownername}" "${repository_name}" "${repository_branch}" "${destination_directory}"
+"${provider_script}" "${repository_name}" "${repository_branch}" "${destination_directory}" "${repository_ownername}"
 exit_code="$?"
 set -e
 

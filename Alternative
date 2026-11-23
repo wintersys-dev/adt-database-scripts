@@ -1,0 +1,22 @@
+Yes—if you want to avoid SymmetricDS’s Java footprint or database trigger overhead inside your Agile Deployment Toolkit (ADT) setup, I recommend Debezium (paired with Kafka Connect or NATS) for Change Data Capture (CDC), or Vitess / PlanetScale if you are running MySQL/MariaDB and want transparent sharding/multi-region routing.
+However, because managed DBaaS providers (DigitalOcean, Linode, Vultr, Exoscale) restrict superuser/filesystem access and ADT relies on lightweight POSIX shell automation, SymmetricDS remains uniquely suited unless you switch replication methods.
+
+Top Alternatives for Multi-Region DBaaS Replication
+
+
+Alternative	How It Works	Pros vs. SymmetricDS	Cons in an ADT + DBaaS Setup
+Debezium + Kafka / Redpanda	Reads database transaction logs (MySQL binlog or Postgres WAL) instead of using SQL triggers.	Zero trigger overhead on Joomla writes; ultra-low latency streaming.	Very heavy resource footprint (requires running Kafka/Redpanda + Connect brokers across 4 regions); requires DBaaS REPLICATION SLAVE / wal_level=logical privileges; lacks built-in multi-master conflict resolution out of the box.
+Bucardo (PostgreSQL only)	Perl-based asynchronous multi-master replication using triggers.	Lightweight (no JVM); built specifically for Postgres multi-master and master-slave sync.	PostgreSQL only (does not support MySQL/MariaDB); much smaller community and slower updates compared to SymmetricDS.
+PgLogical / Native Postgres Logical Replication (Postgres 10+)	Built-in PostgreSQL publish/subscribe replication over WAL slots.	Zero external software needed on ADT VMs; native performance.	PostgreSQL only; multi-master mesh across 4 regions requires manual DDL management, sequence offsetting, and lacks rich conflict-resolution policies.
+Galera Cluster / Percona XtraDB Cluster (MySQL/MariaDB only)	Synchronous virtual-synchrony multi-master clustering.	True active-active with zero replication lag and automatic conflict certification.	Cannot run on standard managed DBaaS (requires self-hosted database nodes on VMs); high cross-region latency slows down every Joomla COMMIT.
+Cloudflare D1 / Turso (libSQL) / CockroachDB	Distributed SQL databases built natively for multi-region edge replication.	Eliminates third-party sync daemons entirely; built-in consensus and routing.	Incompatible with standard Joomla (Joomla only supports MySQL, MariaDB, and PostgreSQL).
+
+
+Which One Should You Choose?
+
+• If you are using Managed MySQL / MariaDB: Stick with SymmetricDS. Managed DBaaS platforms block native multi-master plugins (like Galera or Group Replication), making trigger-based JDBC replication the most practical way to achieve 4-region active-active sync without self-hosting the database.
+• If you are using Managed PostgreSQL: You can replace SymmetricDS with Native PostgreSQL Logical Replication (CREATE PUBLICATION / CREATE SUBSCRIPTION in a 4-node mesh) if you want zero extra software running on your ADT Database Machines—provided you don't need complex conflict resolution rules.
+• If you don't strictly need active-active writes in all 4 regions: Use ADT’s native multi-region setup with Managed DBaaS Read Replicas in the 3 secondary regions, routing Joomla read queries locally and sending admin/form writes to Region 1.
+If you'd like to explore replacing SymmetricDS, let me know:
+• Whether your DBaaS is MySQL/MariaDB or PostgreSQL
+• Whether all 4 regions truly need local write capability (active-active) or if local reads + single-region writes would work for your Joomla site

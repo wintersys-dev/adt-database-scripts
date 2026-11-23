@@ -1,3 +1,84 @@
+
+https://www.freecodecamp.org/news/data-synchronization-for-edge-computing/
+
+To adapt that guide from a hub-and-spoke (Store ↔ Corp) layout to a true peer-to-peer (multi-master) mesh across your 4 Agile Deployment Toolkit (ADT) regions, I recommend putting all 4 regional nodes into a single Node Group and configuring a self-referencing group link (region → region).
+In SymmetricDS, even in a peer-to-peer topology where every node pushes and pulls directly with every other peer, one node still acts as the initial bootstrap/registration server during deployment so the other three can download their initial configuration tables. Once registered, all 4 peers communicate directly with one another without routing traffic through a central hub.
+
+1. Node Properties (engines/adt-region-X.properties)
+
+In your ADT adt-database-scripts provisioning script, generate the properties file on each of the 4 regional Database Machines using a shared group.id (e.g., regional-peer):
+• Bootstrap Peer (PRIMARY_REGION="1", Region 1): Leave registration.url blank so it initializes itself as the seed node.properties
+engine.name=adt-region-1
+group.id=regional-peer
+external.id=1
+sync.url=https://${REGION_1_DB_VM_IP}:31415/sync/adt-region-1
+registration.url=
+db.driver=com.mysql.cj.jdbc.Driver
+db.url=jdbc:mysql://${DB_HOST}:3306/${DB_NAME}
+db.user=${DB_USER}
+db.password=${DB_PASSWORD}
+Use code with caution.
+• Other 3 Peers (PRIMARY_REGION="0", Regions 2, 3, and 4): Point registration.url to Region 1 only for initial enrollment.properties
+engine.name=adt-region-${REGION_ID}
+group.id=regional-peer
+external.id=${REGION_ID}
+sync.url=https://${LOCAL_DB_VM_IP}:31415/sync/adt-region-${REGION_ID}
+registration.url=https://${REGION_1_DB_VM_IP}:31415/sync/adt-region-1
+db.driver=com.mysql.cj.jdbc.Driver
+db.url=jdbc:mysql://${DB_HOST}:3306/${DB_NAME}
+db.user=${DB_USER}
+db.password=${DB_PASSWORD}
+Use code with caution.
+
+2. Peer-to-Peer SQL Configuration (Run on Region 1 Only)
+
+Instead of creating separate Store and Corp groups as shown in the freeCodeCamp article, run this SQL on Region 1’s database during initial deployment. When Regions 2, 3, and 4 register, SymmetricDS automatically replicates these SYM_* rules to them:
+sql
+-- 1. Create a single peer group for all 4 regions
+INSERT INTO SYM_NODE_GROUP (node_group_id, description) 
+VALUES ('regional-peer', 'Active-Active Regional DBaaS Peer');
+
+-- 2. Link the group to ITSELF so every peer pushes ('P') directly to all other peers
+INSERT INTO SYM_NODE_GROUP_LINK (source_node_group_id, target_node_group_id, data_event_action) 
+VALUES ('regional-peer', 'regional-peer', 'P');
+
+-- 3. Create a self-routing rule (SymmetricDS automatically prevents infinite sync loops)
+INSERT INTO SYM_ROUTER (router_id, source_node_group_id, target_node_group_id, router_type, sync_on_update, sync_on_insert, sync_on_delete) 
+VALUES ('peer-to-peer-router', 'regional-peer', 'regional-peer', 'default', 1, 1, 1);
+
+-- 4. Define your channel (example: application tables)
+INSERT INTO SYM_CHANNEL (channel_id, processing_order, max_batch_size, max_batch_to_send, enabled, batch_algorithm, description) 
+VALUES ('app_data', 1, 10000, 100, 1, 'default', 'Peer-to-peer application tables');
+
+-- 5. Attach triggers to your tables (use '*' wildcard to capture all non-SYM tables, or list specific tables)
+INSERT INTO SYM_TRIGGER (trigger_id, source_table_name, channel_id, sync_on_incoming_batch, last_update_time, create_time) 
+VALUES ('all_app_tables', '*', 'app_data', 0, current_timestamp, current_timestamp);
+
+-- 6. Link the trigger to the peer-to-peer router
+INSERT INTO SYM_TRIGGER_ROUTER (trigger_id, router_id, initial_load_order, last_update_time, create_time) 
+VALUES ('all_app_tables', 'peer-to-peer-router', 1, current_timestamp, current_timestamp);
+
+-- 7. Add Conflict Resolution (Mandatory for peer-to-peer writes)
+INSERT INTO SYM_CONFLICT (conflict_id, source_node_group_id, target_node_group_id, detect_type, resolve_type, ping_back, last_update_time, create_time)
+VALUES ('peer-conflict', 'regional-peer', 'regional-peer', 'USE_TIMESTAMP', 'NEWER_WINS', 'OFF', current_timestamp, current_timestamp);
+Use code with caution.
+(Note: Setting sync_on_incoming_batch = 0 on SYM_TRIGGER is crucial—it ensures that when Region 2 receives a change from Region 1, Region 2 doesn't re-trigger and broadcast it back out again.)
+
+3. ADT-Specific Automation Tweaks
+
+To make this seamless inside Peter Winter’s ADT workflow:
+1. Auto-Registration on Region 1: In adt-region-1.properties, add auto.registration=true and auto.reload=true so Regions 2, 3, and 4 automatically register and pull the initial schema/data when ADT spins them up without manual symadmin open-registration commands.
+2. Full-Mesh Firewalling: Because every node pushes ('P') directly to the other three, ensure ADT’s firewall script opens TCP port 31415 on all 4 Database Machine VMs to the IP addresses of the other 3 Database Machine VMs.
+3. Avoid Primary Key Collisions: Before ADT starts the application on the webservers, have your database initialization script set the auto-increment offsets on each DBaaS instance (auto_increment_increment=4, and auto_increment_offset=1, 2, 3, 4 respectively) so concurrent inserts across peers never collide.
+If you want help writing the exact ADT shell hook or handling a specific database engine, let me know:
+• Whether your DBaaS is MySQL/MariaDB or PostgreSQL (as auto-increment/sequence syntax differs)
+• Whether you want full table wildcard syncing (*) or selective table filtering
+
+
+
+
+
+
 To integrate SymmetricDS across four regional DBaaS instances in Peter Charles Winter’s Agile Deployment Toolkit (ADT), I would deploy SymmetricDS directly on the ADT "Database Machine" (the utility/backup VM) in each region rather than modifying the managed DBaaS layers themselves.
 By default, ADT’s multi-region mode provisions a single primary DBaaS and forces secondary regions to connect to it over the public internet—introducing cross-region latency. Installing SymmetricDS on each region's local ADT database machine turns that VM into a local replication hub, letting each region read and write to its own local DBaaS while SymmetricDS handles asynchronous, multi-master replication in the background. [1] (https://symmetricds.org/about/), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations), [4] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/DesignDecisions)
 

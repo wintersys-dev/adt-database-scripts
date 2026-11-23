@@ -1,0 +1,391 @@
+Here is the complete, end-to-end solution for tailing a Linode Managed MySQL binary log and fanning out 30-second batches to multiple remote Linode Managed MySQL databases, complete with architectural diagrams and separate copy-pasteable files.
+
+1. System Architecture & Data Flow
+
+
+High-Level Topology
+
+Show Code
+Download diagram SVG
+
+Atomic 30-Second Batch & Crash-Recovery Lifecycle
+
+Show Code
+Download diagram SVG
+
+2. Step-by-Step Deployment Setup (bash)
+
+Run these commands on your Linode Compute instance (Nanode) to prepare the directories, virtual environment, and initial data seed:
+bash
+# 1. Create application directory and Python virtual environment
+sudo mkdir -p /opt/binlog_sync
+sudo chown "$USER:$USER" /opt/binlog_sync
+python3 -m venv /opt/binlog_sync/venv
+/opt/binlog_sync/venv/bin/pip install mysql-replication pymysql cryptography
+
+# 2. Export initial allowlisted tables + exact binlog coordinate from source
+mysqldump \
+  --host=://aivencloud.com \
+  --port=25060 \
+  --user=avnadmin \
+  --password \
+  --ssl-mode=REQUIRED \
+  --single-transaction \
+  --set-gtid-purged=OFF \
+  --master-data=2 \
+  --hex-blob \
+  app_db users orders order_items payments > /opt/binlog_sync/initial_seed.sql
+Use code with caution.
+(Load initial_seed.sql into each target database before starting the service.)
+
+3. Configuration Files (source.json & targets.json)
+
+
+/opt/binlog_sync/source.json
+
+json
+{
+  "host": "://aivencloud.com",
+  "port": 25060,
+  "user": "avnadmin",
+  "passwd": "SOURCE_PASSWORD",
+  "schema": "app_db",
+  "only_tables": [
+    "users",
+    "orders",
+    "order_items",
+    "payments"
+  ],
+  "generated_cols": {},
+  "server_id": 99999,
+  "batch_interval": 30
+}
+Use code with caution.
+
+/opt/binlog_sync/targets.json
+
+json
+[
+  {
+    "name": "linode-target-1",
+    "host": "://aivencloud.com",
+    "port": 25060,
+    "user": "avnadmin",
+    "passwd": "TARGET1_PASSWORD",
+    "database": "app_db",
+    "max_allowed_packet": 67108864
+  },
+  {
+    "name": "linode-target-2",
+    "host": "://aivencloud.com",
+    "port": 25060,
+    "user": "avnadmin",
+    "passwd": "TARGET2_PASSWORD",
+    "database": "app_db",
+    "max_allowed_packet": 67108864
+  }
+]
+Use code with caution.
+Secure both credential files:
+bash
+chmod 600 /opt/binlog_sync/source.json /opt/binlog_sync/targets.json
+Use code with caution.
+
+4. Application Modules (config.py, sql_builder.py, worker.py)
+
+
+/opt/binlog_sync/config.py
+
+python
+import json
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_FILE = os.path.join(BASE_DIR, "source.json")
+TARGETS_FILE = os.path.join(BASE_DIR, "targets.json")
+
+
+def load_source():
+    with open(SOURCE_FILE, "r", encoding="utf-8") as f:
+        src = json.load(f)
+
+    db_settings = {
+        "host": src["host"],
+        "port": int(src.get("port", 25060)),
+        "user": src["user"],
+        "passwd": src["passwd"],
+        "ssl": {"ssl": {}},
+    }
+    generated = {tbl: set(cols) for tbl, cols in src.get("generated_cols", {}).items()}
+
+    return (
+        db_settings,
+        src["schema"],
+        src["only_tables"],
+        generated,
+        int(src.get("server_id", 99999)),
+        int(src.get("batch_interval", 30)),
+    )
+
+
+def load_targets():
+    with open(TARGETS_FILE, "r", encoding="utf-8") as f:
+        raw_targets = json.load(f)
+
+    return [
+        {
+            "name": t["name"],
+            "host": t["host"],
+            "port": int(t.get("port", 25060)),
+            "user": t["user"],
+            "passwd": t["passwd"],
+            "database": t["database"],
+            "max_allowed_packet": int(t.get("max_allowed_packet", 67108864)),
+            "ssl": {"ssl": {}},
+            "autocommit": False,
+        }
+        for t in raw_targets
+    ]
+
+
+SOURCE_DB, SOURCE_SCHEMA, ONLY_TABLES, GENERATED_COLS, SERVER_ID, BATCH_INTERVAL = load_source()
+TARGETS = load_targets()
+Use code with caution.
+
+/opt/binlog_sync/sql_builder.py
+
+python
+import json
+import struct
+from pymysqlreplication.constants import FIELD_TYPE
+from pymysqlreplication.row_event import DeleteRowsEvent, UpdateRowsEvent, WriteRowsEvent
+from config import GENERATED_COLS
+
+
+def format_col_value(col_meta, val):
+    if val is None:
+        return "%s", None
+    if col_meta.type == FIELD_TYPE.JSON or isinstance(val, (dict, list)):
+        return "%s", json.dumps(val, ensure_ascii=False)
+    if col_meta.type == FIELD_TYPE.GEOMETRY and isinstance(val, (bytes, bytearray)) and len(val) > 4:
+        srid = struct.unpack("<I", val[:4])
+        wkb = bytes(val[4:])
+        return "ST_GeomFromWKB(%s, %s)", (wkb, srid)
+    return "%s", val
+
+
+def _bind_pairs(items, col_meta_map, is_where=False):
+    clauses, params = [], []
+    for k, v in items:
+        ph, bound = format_col_value(col_meta_map[k], v)
+        clauses.append(f"`{k}`={ph}" if is_where else (f"`{k}`", ph))
+        if ph == "ST_GeomFromWKB(%s, %s)":
+            params.extend(bound)
+        else:
+            params.append(bound)
+    return clauses, params
+
+
+def event_to_sql(event):
+    stmts = []
+    table = event.table
+    ignored = GENERATED_COLS.get(table, set())
+    col_meta_map = {col.name: col for col in event.columns}
+    pks = event.primary_key if isinstance(event.primary_key, tuple) else (event.primary_key,)
+
+    for row in event.rows:
+        if isinstance(event, WriteRowsEvent):
+            vals = [(k, v) for k, v in row["values"].items() if k not in ignored]
+            pairs, params = _bind_pairs(vals, col_meta_map, is_where=False)
+            cols = ", ".join(c for c, _ in pairs)
+            phs = ", ".join(p for _, p in pairs)
+            stmts.append((f"REPLACE INTO `{table}` ({cols}) VALUES ({phs})", params))
+
+        elif isinstance(event, UpdateRowsEvent):
+            after = [(k, v) for k, v in row["after_values"].items() if k not in ignored]
+            before = [(pk, row["before_values"][pk]) for pk in pks]
+            set_sql, set_params = _bind_pairs(after, col_meta_map, is_where=True)
+            where_sql, where_params = _bind_pairs(before, col_meta_map, is_where=True)
+            sql = f"UPDATE `{table}` SET {', '.join(set_sql)} WHERE {' AND '.join(where_sql)}"
+            stmts.append((sql, set_params + where_params))
+
+        elif isinstance(event, DeleteRowsEvent):
+            target_pks = [(pk, row["values"][pk]) for pk in pks]
+            where_sql, where_params = _bind_pairs(target_pks, col_meta_map, is_where=True)
+            stmts.append((f"DELETE FROM `{table}` WHERE {' AND '.join(where_sql)}", where_params))
+
+    return stmts
+Use code with caution.
+
+/opt/binlog_sync/worker.py
+
+python
+import signal
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import pymysql
+from pymysqlreplication import BinLogStreamReader
+from pymysqlreplication.event import RotateEvent, XidEvent
+from pymysqlreplication.row_event import DeleteRowsEvent, UpdateRowsEvent, WriteRowsEvent
+from config import BATCH_INTERVAL, ONLY_TABLES, SERVER_ID, SOURCE_DB, SOURCE_SCHEMA, TARGETS
+from sql_builder import event_to_sql
+
+running = True
+
+def handle_signal(signum, frame):
+    global running
+    running = False
+
+signal.signal(signal.SIGINT, handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
+
+
+def connect_target(cfg):
+    return pymysql.connect(**{k: v for k, v in cfg.items() if k != "name"})
+
+
+def init_checkpoint(cfg):
+    conn = connect_target(cfg)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS replication_checkpoint (
+                    id INT PRIMARY KEY,
+                    log_file VARCHAR(255) NOT NULL,
+                    log_pos BIGINT NOT NULL
+                )
+            """)
+        conn.commit()
+        with conn.cursor() as cur:
+            cur.execute("SELECT log_file, log_pos FROM replication_checkpoint WHERE id = 1")
+            row = cur.fetchone()
+            return (row, int(row)) if row else None
+    finally:
+        conn.close()
+
+
+def coord_tuple(cp):
+    return (int(cp.split(".")[-1]), int(cp))
+
+
+def apply_to_target(cfg, tx_list, current_cp):
+    new_stmts, latest_cp = [], current_cp
+    for tx_cp, stmts in tx_list:
+        if current_cp is None or coord_tuple(tx_cp) > coord_tuple(current_cp):
+            new_stmts.extend(stmts)
+            latest_cp = tx_cp
+
+    if not new_stmts and latest_cp == current_cp:
+        return cfg["name"], current_cp, 0
+
+    conn = connect_target(cfg)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+            for sql, params in new_stmts:
+                cur.execute(sql, params)
+            cur.execute("""
+                INSERT INTO replication_checkpoint (id, log_file, log_pos)
+                VALUES (1, %s, %s)
+                ON DUPLICATE KEY UPDATE log_file = VALUES(log_file), log_pos = VALUES(log_pos)
+            """, (latest_cp, latest_cp))
+            cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        conn.commit()
+        return cfg["name"], latest_cp, len(new_stmts)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def flush_batch(batch, checkpoints):
+    ok = True
+    with ThreadPoolExecutor(max_workers=len(TARGETS)) as pool:
+        futs = {pool.submit(apply_to_target, t, batch, checkpoints[t["name"]]): t["name"] for t in TARGETS}
+        for fut in as_completed(futs):
+            name = futs[fut]
+            try:
+                _, new_cp, count = fut.result()
+                checkpoints[name] = new_cp
+                print(f"[{name}] Applied {count} rows -> {new_cp}:{new_cp}")
+            except Exception as exc:
+                ok = False
+                print(f"[{name}] Failed (will retry): {exc}", file=sys.stderr)
+    return ok
+
+
+def main():
+    checkpoints = {t["name"]: init_checkpoint(t) for t in TARGETS}
+    valid_cps = [cp for cp in checkpoints.values() if cp is not None]
+    earliest = min(valid_cps, key=coord_tuple) if valid_cps else None
+
+    opts = {
+        "connection_settings": SOURCE_DB,
+        "server_id": SERVER_ID,
+        "blocking": False,
+        "only_schemas": [SOURCE_SCHEMA],
+        "only_tables": ONLY_TABLES,
+        "only_events": [WriteRowsEvent, UpdateRowsEvent, DeleteRowsEvent, XidEvent, RotateEvent],
+        "freeze_schema": False,
+    }
+    if earliest:
+        opts.update({"resume_stream": True, "log_file": earliest, "log_pos": earliest})
+
+    stream = BinLogStreamReader(**opts)
+    tx_stmts, batch = [], []
+    last_flush = time.monotonic()
+
+    try:
+        while running:
+            ev = stream.fetchone()
+            if ev is not None:
+                if isinstance(ev, (WriteRowsEvent, UpdateRowsEvent, DeleteRowsEvent)):
+                    tx_stmts.extend(event_to_sql(ev))
+                elif isinstance(ev, XidEvent) and tx_stmts:
+                    batch.append(((stream.log_file, stream.log_pos), tx_stmts))
+                    tx_stmts = []
+            else:
+                time.sleep(0.1)
+
+            if (time.monotonic() - last_flush) >= BATCH_INTERVAL:
+                if batch and flush_batch(batch, checkpoints):
+                    batch.clear()
+                last_flush = time.monotonic()
+    finally:
+        if batch:
+            flush_batch(batch, checkpoints)
+        stream.close()
+
+
+if __name__ == "__main__":
+    main()
+Use code with caution.
+
+5. systemd Service (/etc/systemd/system/linode-binlog-sync.service)
+
+ini
+[Unit]
+Description=Linode Managed MySQL 30s Binlog Fan-Out
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/binlog_sync
+ExecStart=/opt/binlog_sync/venv/bin/python -u /opt/binlog_sync/worker.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+Use code with caution.
+Enable and tail logs:
+bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now linode-binlog-sync
+sudo journalctl -u linode-binlog-sync -f
+Use code with caution.
+You now have the full architecture, diagrams, configuration files, and modular Python worker ready to deploy. Let me know if you'd like to add Slack/webhook failure alerting or automated target health checks.

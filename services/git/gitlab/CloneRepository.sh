@@ -1,18 +1,18 @@
 #!/bin/sh
 #: Name:        CloneRepository.sh
-#: Purpose:     Clones or downloads a remote GitLab project branch to a local path.
+#: Purpose:     Clones or downloads a remote GitLab repository branch to a local path.
 #: Author:      Peter Winter
-#: Date:        18/11/2026
+#: Date:        22/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CloneRepository.sh <repository_ownername> <repository_name> <repository_branch> <destination_directory>
+#: Usage:       CloneRepository.sh <repository_name> <branch> <destination_directory> <repository_ownername>
 #:              CloneRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] The GitLab username or group path (repository owner).
-#:   $2         [Required] The name/slug of the GitLab project to clone.
-#:   $3         [Required] The target branch name to clone.
-#:   $4         [Required] The local destination directory path.
+#:   $1         [Required] The name/slug of the repository to clone.
+#:   $2         [Required] The target branch name to clone.
+#:   $3         [Required] The local destination directory path.
+#:   $4         [Required] The GitLab workspace or repository owner name.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -24,7 +24,7 @@
 #:   - External binaries: awk, cat, cut, echo, grep, ls, tr
 #:
 #: Exit Codes:
-#:   0          Project cloned cleanly and destination directory populated
+#:   0          Repository cloned cleanly and destination directory populated
 #:   1          Missing arguments, layout faults, configuration errors, or clone failure
 ###################################################################################
 # License Agreement:
@@ -41,9 +41,9 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ####################################################################################
 
-#set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
@@ -62,14 +62,14 @@ fi
 if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
 then
         /bin/echo "Error: Missing required arguments." >&2
-        /bin/echo "Usage: $0 <repository_ownername> <repository_name> <repository_branch> <destination_directory>" >&2
+        /bin/echo "Usage: $0 <repository_name> <branch> <destination_directory> <repository_ownername>" >&2
         exit 1
 fi
 
-repository_ownername="${1}"
-repository_name="${2}"
-repository_branch="${3}"
-destination_directory="${4}"
+repository_name="${1}"
+repository_branch="${2}"
+destination_directory="${3}"
+repository_ownername="${4}"
 
 software_file="${HOME}/runtime/software.dat"
 if [ ! -f "${software_file}" ] || [ ! -r "${software_file}" ]
@@ -96,7 +96,7 @@ fi
 
 # Temporarily disable set -e to evaluate git transaction failures manually
 set +e
-output="$(${worker_script} "${repository_branch}" "${repository_ownername}" "${repository_name}" "${destination_directory}")"
+output="$("${worker_script}" "${repository_name}" "${repository_branch}" "${destination_directory}" "${repository_ownername}")"
 clone_status="$?"
 set -e
 
@@ -105,7 +105,7 @@ then
         /bin/echo "${output}"
 else
         /bin/echo "failed"
-        /bin/echo "Git clone failed for ${repository_ownername}/${repository_name}. Check your API token, branch, or project URL." >&2
+        /bin/echo "Git clone failed for ${repository_ownername}/${repository_name}. Check your API token, branch, or repository URL." >&2
         exit 1
 fi
 

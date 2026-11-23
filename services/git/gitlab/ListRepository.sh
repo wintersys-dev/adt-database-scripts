@@ -1,16 +1,16 @@
 #!/bin/sh
 #: Name:        ListRepository.sh
-#: Purpose:     Checks whether a GitLab project is "full", "empty", or "none".
+#: Purpose:     Checks whether a Gitlab repository is "full", "empty", or "none".
 #: Author:      Peter Winter
-#: Date:        18/11/2026
+#: Date:        22/11/2026
 #: Version:     1.0
 #:
-#: Usage:       ListRepository.sh <repository_ownername> <repository_name>
+#: Usage:       ListRepository.sh <repository_name> <repository_ownername>
 #:              ListRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] The GitLab username or group path (repository owner).
-#:   $2         [Required] The name/slug of the GitLab project to inspect.
+#:   $1         [Required] The name/slug of the repository to inspect.
+#:   $2         [Required] The Gitlab workspace or repository owner name.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -22,7 +22,7 @@
 #:   - External binaries: awk, cat, cut, echo, grep, tr
 #:
 #: Exit Codes:
-#:   0          Project state ("full", "empty", or "none") printed to stdout
+#:   0          Repository state ("full", "empty", or "none") printed to stdout
 #:   1          Missing arguments, layout faults, configuration errors, or worker failure
 ###################################################################################
 # License Agreement:
@@ -39,9 +39,9 @@
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ####################################################################################
 
-#set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
@@ -56,16 +56,15 @@ else
         exit 1
 fi
 
-# Input validation
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        /bin/echo "Error: Repository owner name and repository name arguments are required." >&2
-        /bin/echo "Usage: $0 <repository_ownername> <repository_name>" >&2
+        /bin/echo "Error: Repository name and repository ownername arguments are required." >&2
+        /bin/echo "Usage: $0 <repository_name> <repository_ownername>" >&2
         exit 1
 fi
 
-repository_ownername="${1}"
-repository_name="${2}"
+repository_name="${1}"
+repository_ownername="${2}"
 
 software_file="${HOME}/runtime/software.dat"
 if [ ! -f "${software_file}" ] || [ ! -r "${software_file}" ]
@@ -92,7 +91,7 @@ fi
 
 # Temporarily disable set -e to evaluate worker execution failures manually
 set +e
-output="$(${worker_script} "${repository_ownername}" "${repository_name}")"
+output="$("${worker_script}" "${repository_name}" "${repository_ownername}")"
 worker_status="$?"
 set -e
 
@@ -111,7 +110,7 @@ then
         esac
 else
         /bin/echo "none"
-        /bin/echo "Project check failed for ${repository_ownername}/${repository_name}. Check your API token or configuration." >&2
+        /bin/echo "Repository check failed for ${repository_ownername}/${repository_name}. Check your API token or configuration." >&2
         exit 1
 fi
 

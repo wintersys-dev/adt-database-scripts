@@ -1,0 +1,56 @@
+To integrate SymmetricDS across four regional DBaaS instances in Peter Charles Winter’s Agile Deployment Toolkit (ADT), I would deploy SymmetricDS directly on the ADT "Database Machine" (the utility/backup VM) in each region rather than modifying the managed DBaaS layers themselves.
+By default, ADT’s multi-region mode provisions a single primary DBaaS and forces secondary regions to connect to it over the public internet—introducing cross-region latency. Installing SymmetricDS on each region's local ADT database machine turns that VM into a local replication hub, letting each region read and write to its own local DBaaS while SymmetricDS handles asynchronous, multi-master replication in the background. [1] (https://symmetricds.org/about/), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations), [4] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/DesignDecisions)
+
+1. Architecture Overview
+
+In ADT, even when DATABASE_INSTALLATION_TYPE="DBaaS" is enabled, the toolkit still provisions a dedicated Database Machine in each deployment to manage backups and database initialisation. [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/DeployingDBaaS), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/ExpeditedBuildProcessWalkthrough), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/DesignDecisions)
+• Local Traffic. Each region's webservers point to their own regional DBaaS endpoint over the local VPC (eliminating cross-region query latency). [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations)
+• Replication Nodes. Each region's ADT Database Machine runs a standalone SymmetricDS engine connected locally via JDBC to its regional DBaaS. [1] (https://www.jumpmind.com/wp-content/uploads/2024/03/SymmetricDS-DataReplication-WhitePaper.pdf), [2] (https://symmetricds.sourceforge.net/doc/3.10/html/user-guide.html)
+• Topology. Configure a Multi-Master (Ring or Mesh) topology where the PRIMARY_REGION="1" node acts as the SymmetricDS Registration Server, and the three PRIMARY_REGION="0" nodes register and sync bidirectionally over HTTPS (port 31415). [1] (https://medium.com/data-weekly/keeping-databases-in-sync-open-source-style-using-symmetricds-d2a2cec0ff1c), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [3] (https://www.freecodecamp.org/news/data-synchronization-for-edge-computing/), [4] (https://www.jumpmind.com/wp-content/uploads/2024/03/SymmetricDS-DataReplication-WhitePaper.pdf)
+
+2. Step-by-Step ADT Integration
+
+Because ADT is modular and relies on POSIX shell scripts and templates, you should fork the adt-build-machine-scripts and adt-database-scripts repositories and hook SymmetricDS into the build lifecycle: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/IntialOverviewOfADT), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/BuildMethodTypesOverview.html), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/ForkingTheToolkit), [4] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Development/AddingANewDatabaseType)
+
+A. Override ADT's Multi-Region Database Routing
+
+Normally, setting MULTI_REGION="1" and PRIMARY_REGION="0" tells secondary webservers to pull the primary region's DBaaS credentials and public IP. [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations)
+1. Deploy each of the 4 regions with its own local DBaaS instance (DATABASE_INSTALLATION_TYPE="DBaaS") so local webservers connect inside their respective regional VPCs.
+2. Use ADT’s existing S3 datastore mechanism (MultiRegionOperations) to share the SymmetricDS Registration URL (https://<primary-db-machine-ip>:31415/sync/region-1) and node credentials across the 4 regions rather than sharing the raw DBaaS endpoint. [1] (https://www.freecodecamp.org/news/data-synchronization-for-edge-computing/), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/DeployingDBaaS), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [4] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations)
+
+B. Automate Installation via adt-database-scripts
+
+Hook the SymmetricDS setup into the database machine provisioning phase (such as InitialiseDatabaseService.sh or the database machine's cloud-init script): [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/DatabaseCredentialsWorkflow), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Development/AddingANewDatabaseType)
+1. Install Java & SymmetricDS. Install OpenJDK (JRE 17 or 21+) and extract the SymmetricDS archive to /opt/symmetric-ds on the Database Machine.
+2. Generate engines/*.properties. Dynamically write the node configuration using the DBaaS credentials ADT already fetches into the environment:properties
+engine.name=adt-region-${REGION_ID}
+db.driver=com.mysql.cj.jdbc.Driver # Or org.postgresql.Driver
+db.url=jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+db.user=${DB_USER}
+db.password=${DB_PASSWORD}
+registration.url=https://${PRIMARY_DB_VM_IP}:31415/sync/adt-region-1
+sync.url=https://${LOCAL_DB_VM_IP}:31415/sync/adt-region-${REGION_ID}
+group.id=regional-dbaas
+external.id=${REGION_ID}
+Use code with caution.
+3. Register as a Systemd Service. Run /opt/symmetric-ds/bin/sym_service install and start the daemon so replication survives reboots. [1] (https://symmetricds.org/docs/how-to/connect-to-database/), [2] (https://github.com/jumpmindinc/symmetric-ds), [3] (https://medium.com/data-weekly/dockerizing-symmetricds-6dae5791ac8f), [4] (https://www.freecodecamp.org/news/data-synchronization-for-edge-computing/), [5] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/DatabaseCredentialsWorkflow)
+
+C. Adjust Firewall Rules (AdjustDBaaSFirewall.sh)
+
+ADT automatically manages firewall rules for DBaaS and VMs. Update your firewall scripts across the 4 providers (DigitalOcean, Linode, Vultr, or Exoscale): [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Development/AddingANewDatabaseType), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/ADT)
+• DBaaS Firewall. Only needs to whitelist its own local region's webservers and local Database Machine (no cross-region DBaaS exposure required). [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/MultiRegionDeployments), [2] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations)
+• Database Machine VM Firewall. Open port 31415 (HTTPS) strictly between the public IPs of the 4 regional Database Machines. You can reuse ADT's S3 bucket IP-sharing pattern (${HOME}/runtime/dbaas_allowed_ips) to dynamically allowlist the 4 Database Machine IPs. [1] (https://www.jumpmind.com/wp-content/uploads/2024/03/SymmetricDS-DataReplication-WhitePaper.pdf), [2] (https://www.freecodecamp.org/news/data-synchronization-for-edge-computing/), [3] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Operations/MultiRegionOperations), [4] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Deployment/DirectoryTreeStructure)
+
+3. Critical Multi-Master Database Caveats
+
+Running active-active replication across 4 regions with CMS applications (like WordPress, Joomla, Drupal, or Moodle, which ADT natively supports) introduces two major operational risks you must configure in SymmetricDS: [1] (https://www.wintersys-initiatives.uk/Agile%20Deployment%20Toolkit/Feature%20Set)
+
+Challenge	SymmetricDS Solution
+Auto-Increment ID Collisions	If users in London and Singapore simultaneously create a post or user record, both DBaaS instances will assign id = 105. Configure auto_increment_increment = 4 (or 10 for headroom) and a unique auto_increment_offset (1, 2, 3, 4) on each regional DBaaS, or use UUIDs.
+Simultaneous Row Updates	Enable SymmetricDS Conflict Detection & Resolution (SYM_CONFLICT). Configure USE_TIMESTAMP or NEWEST_WINS on regional-dbaas group links so concurrent edits to the same row resolve deterministically without halting batch queues.
+DBaaS Trigger Permissions	SymmetricDS relies on database triggers (SYM_DATA). Ensure your managed DBaaS user has TRIGGER and CREATE TABLE privileges, and disable log_bin_trust_function_creators restrictions if using managed MySQL/MariaDB.
+CMS Media / File Uploads	SymmetricDS only syncs database tables unless configured otherwise. Either rely on ADT’s built-in multi-region S3 datastore replication (Datastore Operational Protocols) for media assets, or enable SymmetricDS's File Sync (SYM_FILE_TRIGGER) on your webroot upload directories.
+
+If you'd like to tailor the configuration scripts and conflict rules, could you share:
+• Which DBaaS engine (MySQL, MariaDB, or PostgreSQL) and cloud providers you are using across the 4 regions
+• Which CMS or application ADT is deploying

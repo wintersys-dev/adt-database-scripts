@@ -1,0 +1,86 @@
+That explains the constraint completely—and it also reveals one huge catch with the previous shell scripts that we need to fix immediately.
+If your remote targets are managed databases that forbid CHANGE REPLICATION SOURCE, they almost certainly forbid REPLICATION_APPLIER / SUPER privileges as well—which means BINLOG '...' base64 playback will fail with Access denied on those targets.
+Managed databases only allow standard SQL (INSERT, UPDATE, DELETE) over a normal client connection. To make this both simple and compatible with locked-down managed targets, you have two much cleaner options:
+
+Option 1: Switch Source to binlog_format = MIXED or STATEMENT (Simplest POSIX Shell)
+
+If you can change your source managed DB's binlog_format parameter from ROW to MIXED (or STATEMENT), mysqlbinlog outputs plain, standard SQL statements (INSERT INTO orders ..., UPDATE users ...) instead of opaque binary BINLOG '...' strings.
+• No SUPER or REPLICATION_APPLIER needed on the remote managed targets—just standard INSERT/UPDATE/DELETE permissions.
+• No Table_map or table_id tracking needed in awk—you can filter tables with a simple regex match on the SQL statement.
+
+Ultra-Clean POSIX Shell Script (For MIXED / STATEMENT Binlogs)
+
+sh
+#!/bin/sh
+set -eu
+
+SRC_HOST="://example.com"
+SRC_USER="repl_user"
+export MYSQL_PWD="repl_password"
+
+# Regex of allowed table names
+ALLOW_REGEX="^(INSERT INTO|UPDATE|DELETE FROM|REPLACE INTO)[[:space:]]+\`?(users|orders|payments)\`?"
+
+TARGETS="
+://example.com|3306|app_user|pass1|app_db
+://example.com|3306|app_user|pass2|app_db
+"
+
+STATE_FILE="/var/lib/binlog_sync/checkpoint.state"
+BATCH_FILE="/var/tmp/binlog_batch.sql"
+INTERVAL=30
+
+while true; do
+    sleep "$INTERVAL"
+    START_FILE=$(cut -d: -f1 "$STATE_FILE")
+    START_POS=$(cut -d: -f2 "$STATE_FILE")
+
+    END_COORD=$(mysql -N -s -h "$SRC_HOST" -u "$SRC_USER" -e "SHOW MASTER STATUS;" | awk 'NR==1 {print $1 ":" $2}')
+    END_FILE=$(printf '%s' "$END_COORD" | cut -d: -f1)
+    END_POS=$(printf '%s' "$END_COORD" | cut -d: -f2)
+
+    [ "$START_FILE:$START_POS" = "$END_FILE:$END_POS" ] && continue
+
+    # Extract plain SQL and keep only allowed tables + transaction wrappers
+    {
+        printf 'SET autocommit = 0;\n'
+        mysqlbinlog --read-from-remote-server --to-last-log \
+            --host="$SRC_HOST" --user="$SRC_USER" --start-position="$START_POS" "$START_FILE" \
+        | awk -v cur="$START_FILE" -v ef="$END_FILE" -v ep="$END_POS" -v allow="$ALLOW_REGEX" '
+            /^# Rotate to / { match($0, /Rotate to [^ ]+/); cur = substr($0, RSTART+10, RLENGTH-10) }
+            /^# at [0-9]+/  { if (cur == ef && ($3+0) >= (ep+0)) exit }
+            /^(BEGIN|COMMIT|ROLLBACK|SET TIMESTAMP|USE )/ { print; next }
+            $0 ~ allow { print }
+        '
+        printf 'COMMIT;\n'
+    } > "$BATCH_FILE"
+
+    # Fan out to managed targets using standard SQL connections
+    FAIL=0; PIDS=""
+    for T in $TARGETS; do
+        (
+            HOST=$(printf '%s' "$T" | cut -d'|' -f1); PORT=$(printf '%s' "$T" | cut -d'|' -f2)
+            USER=$(printf '%s' "$T" | cut -d'|' -f3); PASS=$(printf '%s' "$T" | cut -d'|' -f4)
+            DB=$(printf '%s' "$T"   | cut -d'|' -f5)
+            MYSQL_PWD="$PASS" mysql -h "$HOST" -P "$PORT" -u "$USER" "$DB" < "$BATCH_FILE"
+        ) &
+        PIDS="$PIDS $!"
+    done
+    for PID in $PIDS; do wait "$PID" || FAIL=1; done
+
+    if [ "$FAIL" -eq 0 ]; then
+        printf '%s:%s\n' "$END_FILE" "$END_POS" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    fi
+done
+Use code with caution.
+(Caveat: Statement-based replication can drift if your app uses non-deterministic queries like INSERT INTO ... SELECT ... LIMIT 1 without ORDER BY.)
+
+Option 2: Keep binlog_format = ROW and Use a Lightweight CDC Binary (Simplest Overall)
+
+If your source must stay on binlog_format=ROW and your targets are locked-down managed DBs, do not parse ROW binlogs in shell. Instead, run a single-binary CDC tool like Maxwell's Daemon or go-mysql-transfer:
+• Connects to the source as a standard replication client (ROW format).
+• Translates binary row events into standard INSERT / UPDATE / DELETE SQL statements over normal user connections (no SUPER or CHANGE REPLICATION SOURCE required on targets).
+• Supports simple config-file table allowlists (include_tables = users, orders, payments) out of the box—zero awk required.
+If you let me know:
+• Whether you can set binlog_format=MIXED on the source DB (allowing the simple plain-SQL shell script above), or if the source is locked to ROW
+• Which cloud provider hosts your managed databases (some providers have built-in Data Transmission / DMS services that connect managed-to-managed natively)

@@ -75,6 +75,32 @@ If you want help writing the exact ADT shell hook or handling a specific databas
 • Whether you want full table wildcard syncing (*) or selective table filtering
 
 
+SymmetricDS is very reliable at the replication engine level, as it is battle-tested in distributed, intermittent-network environments (like retail POS systems). However, when paired with Peter Winter’s Agile Deployment Toolkit (ADT) across managed DBaaS instances, overall reliability depends heavily on how well you bridge ADT’s immutable/ephemeral architecture with SymmetricDS’s stateful metadata.
+ADT is designed for rapid, disposable infrastructure scaling (tearing down and rebuilding VMs via shell scripts), whereas SymmetricDS maintains strict state inside SYM_* tables. If not properly automated, mismatches between the two are your primary failure points.
+
+1. Where It Is Highly Reliable
+
+• Network Partitions & High Latency: Because SymmetricDS uses asynchronous, batch-based HTTP/HTTPS pushes with built-in retry queues, brief cross-region packet loss or cloud provider blips will not crash your webservers or slow down local user requests.
+• Database Engine Compatibility: SymmetricDS works reliably with managed MySQL, MariaDB, and PostgreSQL across DigitalOcean, Linode, Vultr, and Exoscale, because it operates at the SQL/JDBC trigger level rather than requiring superuser binary-log replication access (which many DBaaS providers restrict).
+• Crash Recovery: Because outgoing batches are tracked transactionally in the DBaaS itself, if an ADT Database Machine VM reboots or crashes, SymmetricDS resumes from the exact last acknowledged batch without data loss.
+
+2. Primary Failure Points in an ADT Setup (And How to Mitigate Them)
+
+
+Risk Area	Why It Happens in ADT	How to Make It Reliable
+ADT Autoscaling / VM Rebuilds	ADT regularly builds fresh Database Machine VMs from scratch. If a rebuilt VM generates a new node_id or misses its security key, peers will reject it.	Store node.id and registration.secret in ADT’s persistent S3 datastore so rebuilt Database Machines re-attach seamlessly.
+DBaaS Managed Maintenance & Failover	Cloud DBaaS providers perform automated minor upgrades or brief HA failovers, dropping JDBC connections.	SymmetricDS handles JDBC reconnects automatically, provided you configure db.validation.query=SELECT 1 and db.test.on.borrow=true in engines/*.properties.
+CMS Schema Updates	When WordPress, Joomla, or Drupal runs a plugin/core update (ALTER TABLE), triggers can momentarily go out of sync if all 4 regions run updates simultaneously.	Disable auto.sync.triggers=true during automated CMS updates, run schema updates on Region 1 only, and let SymmetricDS sync triggers outward.
+Split-Brain / Race Conditions	Asynchronous peer-to-peer sync usually has a 1–5 second lag. If a user submits a form in Region 1 and is immediately load-balanced to Region 2, Region 2 might not have the row yet.	Use Geo-DNS / Sticky Sessions so a user stays pinned to their nearest regional ADT cluster for the duration of their session.
+Silent Sync Stalls	A single malformed row or constraint violation on one table can block an entire SymmetricDS Channel (ER status) until resolved.	Separate high-churn tables (like sessions/logs) onto their own SYM_CHANNEL so an error in logs never blocks core user or order tables, and set up webhook/email alerts on SYM_OUTGOING_BATCH WHERE ERROR_FLAG = 1.
+
+
+Bottom Line Verdict
+
+If you exclude volatile tables (like PHP sessions, transient caches, and rate-limiter logs) from replication and use sticky regional DNS routing, SymmetricDS + ADT is production-grade for multi-region high availability. It is far less reliable if you try to replicate every table in a high-write CMS with users bouncing randomly between regions on every HTTP request.
+If you'd like to harden this setup for production, let me know:
+• Which CMS or web application you are running (so we can identify which session/cache tables to exclude)
+• Whether your DBaaS tier has strict connection or IOPS limits (as database triggers add write overhead)
 
 
 

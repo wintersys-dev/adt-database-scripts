@@ -1,18 +1,18 @@
 #!/bin/sh
 #: Name:        clone_repository.sh
-#: Purpose:     Downloads and extracts a GitHub repository branch archive via REST API.
+#: Purpose:     Downloads and extracts a GitHub repository branch tarball via REST API (public first, authenticated fallback).
 #: Author:      Peter Winter
-#: Date:        18/11/2026
+#: Date:        22/11/2026
 #: Version:     1.0
 #:
-#: Usage:       clone_repository.sh <branch> <repository_ownername> <repository_name> <destination_directory>
+#: Usage:       clone_repository.sh <repository_name> <branch> <destination_directory> <repository_ownername>
 #:              clone_repository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] Target branch name or "--branch <name>" flag.
-#:   $2         [Required] GitHub organisation or individual account namespace.
-#:   $3         [Required] Case-sensitive name of the target GitHub repository.
-#:   $4         [Required] Local destination directory for the extracted files.
+#:   $1         [Required] The name/slug of the GitHub repository to download.
+#:   $2         [Required] Target branch name.
+#:   $3         [Required] Local destination directory for the extracted files.
+#:   $4         [Required] The GitHub organisation or account owner name.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -20,10 +20,10 @@
 #: Dependencies:
 #:   - /home/homedir.dat
 #:   - ${HOME}/utilities/config/ExtractConfigValue.sh
-#:   - External binaries: cat, curl, cut, echo, find, grep, mkdir, mktemp, rm, sed, tar, xargs
+#:   - External binaries: cat, curl, cut, echo, grep, mkdir, mktemp, printf, rm, tar
 #:
 #: Exit Codes:
-#:   0          Repository archive downloaded, extracted, and normalised to LF cleanly
+#:   0          Repository archive downloaded and extracted cleanly
 #:   1          Missing arguments, layout faults, extraction error, or unexpected HTTP code
 #:   401        Unauthorized (invalid or expired APPLICATIONREPOSITORYTOKEN)
 #:   403        Forbidden (token lacks read permissions for target repository)
@@ -58,29 +58,19 @@ if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
+repository_name="${1}"
+branch="${2}"
+destination_directory="${3}"
+repository_ownername="${4}"
+
+if [ -z "${repository_name}" ] || [ -z "${branch}" ] || [ -z "${destination_directory}" ] || [ -z "${repository_ownername}" ]
 then
-        /bin/echo "Error: Branch, repository owner, repository name, and destination directory are required." >&2
-        /bin/echo "Usage: $0 <branch> <repository_ownername> <repository_name> <destination_directory>" >&2
-        exit 1
-fi
-
-branch="$(/bin/echo "${1}" | /usr/bin/sed 's/^--branch[[:space:]]*//')"
-repository_ownername="${2}"
-repository_name="${3}"
-destination_directory="${4}"
-
-set +e
-REPOSITORY_TOKEN="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYTOKEN')"
-set -e
-
-if [ -z "${REPOSITORY_TOKEN}" ]
-then
-        /bin/echo "Error: Failed to fetch required context variables (APPLICATIONREPOSITORYTOKEN)." >&2
+        /bin/echo "Error: Repository name, branch, destination directory, and repository owner are required." >&2
+        /bin/echo "Usage: $0 <repository_name> <branch> <destination_directory> <repository_ownername>" >&2
         exit 1
 fi
 
@@ -91,21 +81,46 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-github_api_version="2026-03-10"
 api_base="https://api.github.com"
 endpoint_url="${api_base}/repos/${repository_ownername}/${repository_name}/tarball/${branch}"
 
+# 1. Attempt unauthenticated download first (works for public repositories without touching credentials)
 set +e
-HTTP_CODE=$(/bin/echo "Authorization: Bearer ${REPOSITORY_TOKEN}" | \
-        /usr/bin/curl -s -L -H @- \
+HTTP_CODE=$(/usr/bin/curl -s -L --connect-timeout 15 \
         -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: ${github_api_version}" \
         -o "${tmp_archive}" \
         -w "%{http_code}" \
         "${endpoint_url}")
 set -e
 
+# 2. If public access fails (e.g., 404/403/401 on a private repository), retry with Bearer token
+if [ "${HTTP_CODE}" != "200" ]
+then
+        set +e
+        REPOSITORY_TOKEN="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'APPLICATIONREPOSITORYTOKEN' 2>/dev/null)"
+        set -e
+
+        if [ -n "${REPOSITORY_TOKEN}" ] && [ "${REPOSITORY_TOKEN}" != "none" ]
+        then
+                /bin/rm -f "${tmp_archive}"
+                set +e
+                HTTP_CODE=$(/usr/bin/printf 'Authorization: Bearer %s\n' "${REPOSITORY_TOKEN}" | \
+                        /usr/bin/curl -s -L --connect-timeout 15 -H @- \
+                        -H "Accept: application/vnd.github+json" \
+                        -o "${tmp_archive}" \
+                        -w "%{http_code}" \
+                        "${endpoint_url}")
+                set -e
+        fi
+
+        unset REPOSITORY_TOKEN
+fi
+
 case "${HTTP_CODE}" in
+        000)
+                /bin/echo "Error 000: Connection failed or timed out while reaching ://github.com." >&2
+                exit 1
+                ;;
         200)
                 /bin/mkdir -p "${destination_directory}"
                 set +e
@@ -119,9 +134,6 @@ case "${HTTP_CODE}" in
                         exit 1
                 fi
 
-                # Normalise CRLF (^M) line endings to LF on extracted text files while skipping binary assets
-                /usr/bin/find "${destination_directory}" -type f -exec /usr/bin/grep -IlZ "" {} + | /usr/bin/xargs -0 -r /bin/sed -i 's/\r$//'
-                
                 /bin/echo "${destination_directory}"
                 exit 0
                 ;;

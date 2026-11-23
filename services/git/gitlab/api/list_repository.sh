@@ -1,16 +1,16 @@
 #!/bin/sh
 #: Name:        list_repository.sh
-#: Purpose:     Checks a GitLab project state ("full", "empty", or "none") via REST API v4.
+#: Purpose:     Checks a GitLab project state ("full", "empty", or "none") via REST API v4 (public first, authenticated fallback).
 #: Author:      Peter Winter
-#: Date:        18/11/2026
-#: Version:     1.0
+#: Date:        22/11/2026
+#: Version:     1.2
 #:
-#: Usage:       list_repository.sh <repository_ownername> <repository_name>
+#: Usage:       list_repository.sh <repository_name> <repository_ownername>
 #:              list_repository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] The GitLab username or group path (repository owner).
-#:   $2         [Required] The name/slug of the GitLab project to inspect.
+#:   $1         [Required] The name/slug of the GitLab project to inspect.
+#:   $2         [Required] The GitLab username or group path (repository owner).
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -18,11 +18,11 @@
 #: Dependencies:
 #:   - /home/homedir.dat
 #:   - ${HOME}/utilities/config/ExtractConfigValue.sh
-#:   - External binaries: cat, curl, cut, echo, grep, jq, sed
+#:   - External binaries: cat, curl, cut, echo, grep, jq, mktemp, printf, rm, sed
 #:
 #: Exit Codes:
 #:   0          Project state ("full", "empty", or "none") printed to stdout
-#:   1          Missing arguments, layout faults, missing credentials, or unexpected HTTP code
+#:   1          Missing arguments, layout faults, connection error, or unexpected HTTP code
 #:   401        Unauthorized (invalid or expired APPLICATIONREPOSITORYTOKEN)
 #:   403        Forbidden (token lacks permissions to inspect target project)
 #:   429        Rate Limit Exceeded
@@ -44,6 +44,7 @@
 
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
@@ -54,57 +55,91 @@ if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        /bin/echo "Error: Repository owner name and repository name arguments are required." >&2
-        /bin/echo "Usage: $0 <repository_ownername> <repository_name>" >&2
+        /bin/echo "Error: Repository name and repository ownername arguments are required." >&2
+        /bin/echo "Usage: $0 <repository_name> <repository_ownername>" >&2
         exit 1
 fi
 
-repository_ownername="${1}"
-repository_name="${2}"
+repository_name="${1}"
+repository_ownername="${2}"
 
-set +e
-REPOSITORY_TOKEN="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYTOKEN')"
-set -e
+tmp_response="$(/bin/mktemp /tmp/repo_list.XXXXXX.json)"
 
-if [ -z "${REPOSITORY_TOKEN}" ]
-then
-        /bin/echo "Error: Failed to fetch required context variables (APPLICATIONREPOSITORYTOKEN)." >&2
-        exit 1
-fi
+cleanup() {
+        /bin/rm -f "${tmp_response}"
+}
+trap cleanup EXIT INT TERM
 
 encoded_project="$(/bin/echo "${repository_ownername}/${repository_name}" | /usr/bin/sed 's/\//%2F/g')"
 api_base="https://gitlab.com/api/v4"
 project_endpoint="${api_base}/projects/${encoded_project}"
 
-
-CLEAN_TOKEN="$(printf '%s' "${REPOSITORY_TOKEN}" | /usr/bin/tr -d '\r\n')"
-
+# 1. Attempt unauthenticated lookup first (works for public projects without touching credentials)
 set +e
-PROJECT_RESPONSE=$(/usr/bin/curl -s \
-        -H "PRIVATE-TOKEN: ${CLEAN_TOKEN}" \
-        "${project_endpoint}" \
-        -w "\nHTTP_STATUS:%{http_code}")
+PROJECT_HTTP_CODE=$(/usr/bin/curl -s --connect-timeout 15 \
+        -o "${tmp_response}" \
+        -w "%{http_code}" \
+        "${project_endpoint}")
 set -e
 
+# 2. If public access fails (e.g., 404/403/401 on a private project), retry with PRIVATE-TOKEN
+if [ "${PROJECT_HTTP_CODE}" != "200" ]
+then
+        set +e
+        REPOSITORY_TOKEN="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'APPLICATIONREPOSITORYTOKEN' 2>/dev/null)"
+        set -e
 
-PROJECT_HTTP_CODE=$(/bin/echo "${PROJECT_RESPONSE}" | /usr/bin/grep "HTTP_STATUS:" | /usr/bin/cut -d':' -f2)
-PROJECT_BODY=$(/bin/echo "${PROJECT_RESPONSE}" | /usr/bin/sed '/HTTP_STATUS:/d')
+        if [ -n "${REPOSITORY_TOKEN}" ] && [ "${REPOSITORY_TOKEN}" != "none" ]
+        then
+                : > "${tmp_response}"
+                set +e
+                PROJECT_HTTP_CODE=$(/usr/bin/printf 'PRIVATE-TOKEN: %s\n' "${REPOSITORY_TOKEN}" | \
+                        /usr/bin/curl -s --connect-timeout 15 -H @- \
+                        -o "${tmp_response}" \
+                        -w "%{http_code}" \
+                        "${project_endpoint}")
+                set -e
+        fi
+
+        unset REPOSITORY_TOKEN
+fi
 
 case "${PROJECT_HTTP_CODE}" in
+        000)
+                /bin/echo "Error 000: Connection failed or timed out while reaching gitlab.com." >&2
+                exit 1
+                ;;
         200)
-                is_empty="$(/bin/echo "${PROJECT_BODY}" | /usr/bin/jq -r 'if .empty_repo == null then "" else (.empty_repo | tostring) end' 2>/dev/null)"
-                if [ "${is_empty}" = "false" ]
+                has_empty_flag="$(/usr/bin/jq -r 'has("empty_repo")' "${tmp_response}" 2>/dev/null)"
+                if [ "${has_empty_flag}" = "true" ]
                 then
-                        /bin/echo "full"
+                        repo_state="$(/usr/bin/jq -r 'if .empty_repo == true then "empty" else "full" end' "${tmp_response}" 2>/dev/null)"
                 else
-                        /bin/echo "empty"
+                        # Unauthenticated public response omits empty_repo; check if any branches exist
+                        branches_code=$(/usr/bin/curl -s --connect-timeout 15 \
+                                -o "${tmp_response}" \
+                                -w "%{http_code}" \
+                                "${project_endpoint}/repository/branches?per_page=1")
+                        if [ "${branches_code}" = "200" ]
+                        then
+                                branch_count="$(/usr/bin/jq 'length' "${tmp_response}" 2>/dev/null)"
+                                if [ "${branch_count:-0}" -gt 0 ]
+                                then
+                                        repo_state="full"
+                                else
+                                        repo_state="empty"
+                                fi
+                        else
+                                repo_state="empty"
+                        fi
                 fi
+                /bin/echo "${repo_state:-empty}"
                 exit 0
                 ;;
         404)
@@ -128,6 +163,7 @@ case "${PROJECT_HTTP_CODE}" in
                 exit 500
                 ;;
         *)
+                PROJECT_BODY="$(/bin/cat "${tmp_response}" 2>/dev/null)"
                 /bin/echo "Error ${PROJECT_HTTP_CODE}: Remote endpoint refused connection or threw an unexpected code." >&2
                 /bin/echo "API Detail: ${PROJECT_BODY}" >&2
                 exit 1

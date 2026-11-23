@@ -1,18 +1,18 @@
 #!/bin/sh
 #: Name:        clone_repository.sh
-#: Purpose:     Downloads and extracts a GitLab project branch archive via REST API v4.
+#: Purpose:     Downloads and extracts a GitLab project branch archive via REST API v4 (public first, authenticated fallback).
 #: Author:      Peter Winter
-#: Date:        18/11/2026
-#: Version:     1.0
+#: Date:        22/11/2026
+#: Version:     1.1
 #:
-#: Usage:       clone_repository.sh <branch> <repository_ownername> <repository_name> <destination_directory>
+#: Usage:       clone_repository.sh <repository_name> <branch> <destination_directory> <repository_ownername>
 #:              clone_repository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] Target branch name or "--branch <name>" flag.
-#:   $2         [Required] The GitLab username or group path (repository owner).
-#:   $3         [Required] The name/slug of the GitLab project to download.
-#:   $4         [Required] Local destination directory for the extracted files.
+#:   $1         [Required] The name/slug of the GitLab project to download.
+#:   $2         [Required] Target branch name.
+#:   $3         [Required] Local destination directory for the extracted files.
+#:   $4         [Required] The GitLab username or group path (repository owner).
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -20,7 +20,7 @@
 #: Dependencies:
 #:   - /home/homedir.dat
 #:   - ${HOME}/utilities/config/ExtractConfigValue.sh
-#:   - External binaries: cat, curl, cut, echo, grep, mkdir, mktemp, rm, sed, tar
+#:   - External binaries: cat, curl, cut, echo, grep, mkdir, mktemp, printf, rm, sed, tar
 #:
 #: Exit Codes:
 #:   0          Project archive downloaded and extracted cleanly
@@ -48,6 +48,7 @@
 #set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
@@ -58,29 +59,19 @@ if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
-if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
+repository_name="${1}"
+branch="${2}"
+destination_directory="${3}"
+repository_ownername="${4}"
+
+if [ -z "${repository_name}" ] || [ -z "${branch}" ] || [ -z "${destination_directory}" ] || [ -z "${repository_ownername}" ]
 then
-        /bin/echo "Error: Branch, repository owner, repository name, and destination directory are required." >&2
-        /bin/echo "Usage: $0 <branch> <repository_ownername> <repository_name> <destination_directory>" >&2
-        exit 1
-fi
-
-branch="$(/bin/echo "${1}" | /usr/bin/sed 's/^--branch[[:space:]]*//')"
-repository_ownername="${2}"
-repository_name="${3}"
-destination_directory="${4}"
-
-set +e
-REPOSITORY_TOKEN="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYTOKEN')"
-set -e
-
-if [ -z "${REPOSITORY_TOKEN}" ]
-then
-        /bin/echo "Error: Failed to fetch required context variables (APPLICATIONREPOSITORYTOKEN)." >&2
+        /bin/echo "Error: Repository name, branch, destination directory, and repository owner are required." >&2
+        /bin/echo "Usage: $0 <repository_name> <branch> <destination_directory> <repository_ownername>" >&2
         exit 1
 fi
 
@@ -93,19 +84,44 @@ trap cleanup EXIT INT TERM
 
 # URL-encode slashes in owner/project path for GitLab v4 API
 encoded_project="$(/bin/echo "${repository_ownername}/${repository_name}" | /usr/bin/sed 's/\//%2F/g')"
-#api_base="https://gitlab.com"
 api_base="https://gitlab.com/api/v4"
 endpoint_url="${api_base}/projects/${encoded_project}/repository/archive.tar.gz?sha=${branch}"
 
+# 1. Attempt unauthenticated download first (works for public projects without touching credentials)
 set +e
-HTTP_CODE=$(/bin/echo "PRIVATE-TOKEN: ${REPOSITORY_TOKEN}" | \
-        /usr/bin/curl -s -L -H @- \
+HTTP_CODE=$(/usr/bin/curl -s -L --connect-timeout 15 \
         -o "${tmp_archive}" \
         -w "%{http_code}" \
         "${endpoint_url}")
 set -e
 
+# 2. If public access fails (e.g., 404/403/401 on a private project), retry with PRIVATE-TOKEN
+if [ "${HTTP_CODE}" != "200" ]
+then
+        set +e
+        REPOSITORY_TOKEN="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'APPLICATIONREPOSITORYTOKEN' 2>/dev/null)"
+        set -e
+
+        if [ -n "${REPOSITORY_TOKEN}" ] && [ "${REPOSITORY_TOKEN}" != "none" ]
+        then
+                /bin/rm -f "${tmp_archive}"
+                set +e
+                HTTP_CODE=$(/usr/bin/printf 'PRIVATE-TOKEN: %s\n' "${REPOSITORY_TOKEN}" | \
+                        /usr/bin/curl -s -L --connect-timeout 15 -H @- \
+                        -o "${tmp_archive}" \
+                        -w "%{http_code}" \
+                        "${endpoint_url}")
+                set -e
+        fi
+
+        unset REPOSITORY_TOKEN
+fi
+
 case "${HTTP_CODE}" in
+        000)
+                /bin/echo "Error 000: Connection failed or timed out while reaching gitlab.com." >&2
+                exit 1
+                ;;
         200)
                 /bin/mkdir -p "${destination_directory}"
                 set +e

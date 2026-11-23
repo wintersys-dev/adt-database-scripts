@@ -5,13 +5,13 @@
 #: Date:        18/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CreateRepository.sh [repository_provider] [repository_username] <repository_name>
+#: Usage:       CreateRepository.sh <repository_name> [repository_provider] [repository_username] 
 #:              CreateRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Optional] The Git provider name (falls back to APPLICATIONREPOSITORYPROVIDER).
-#:   $2         [Optional] The workspace or repository username (falls back to APPLICATIONREPOSITORYUSERNAME).
-#:   $3         [Required] The name/slug of the repository to create.
+#:   $1         [Required] The name/slug of the repository to create.
+#:   $2         [Optional] The Git provider name (falls back to APPLICATIONREPOSITORYPROVIDER).
+#:   $3         [Optional] The workspace or repository username (falls back to APPLICATIONREPOSITORYUSERNAME).
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -61,16 +61,16 @@ else
 fi
 
 set +e
-repository_provider="${1:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')}"
-repository_username="${2:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')}"
-repository_name="${3}"
+repository_name="${1}"
+repository_provider="${2:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYPROVIDER')}"
+repository_username="${3:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYUSERNAME')}"
 set -e
 
 # Verify that all required values are set from either arguments or config
-if [ -z "${repository_provider}" ] || [ -z "${repository_username}" ] || [ -z "${repository_name}" ]
+if [ -z "${repository_name}" ] || [ -z "${repository_provider}" ] || [ -z "${repository_username}" ]
 then
-        /bin/echo "Error: Repository provider, repository username, or repository name could not be determined from arguments or config." >&2
-        /bin/echo "Usage: $0 [repository_provider] [repository_username] <repository_name>" >&2
+        /bin/echo "Error: Repository name, repository provider, or repository username could not be determined from arguments or config." >&2
+        /bin/echo "Usage: $0 <repository_name> [repository_provider] [repository_username]" >&2
         exit 1
 fi
 
@@ -100,8 +100,6 @@ then
         /bin/echo "Error: ${provider_script} exited with error code ${exit_code}." >&2
         exit 1
 fi
-
-exit 0
 
 exit 0
 

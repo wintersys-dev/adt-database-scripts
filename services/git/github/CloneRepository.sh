@@ -1,18 +1,18 @@
 #!/bin/sh
 #: Name:        CloneRepository.sh
-#: Purpose:     Clones or downloads a GitHub repository branch to a local destination directory.
+#: Purpose:     Clones or downloads a remote GitHub Git repository branch to a local path.
 #: Author:      Peter Winter
-#: Date:        18/11/2026
+#: Date:        22/11/2026
 #: Version:     1.0
 #:
-#: Usage:       CloneRepository.sh <repository_ownername> <repository_name> <repository_branch> <destination_directory>
+#: Usage:       CloneRepository.sh <repository_name> <branch> <destination_directory> <repository_ownername>
 #:              CloneRepository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Optional] GitHub organisation or individual account namespace (falls back to APPLICATIONREPOSITORYOWNER).
-#:   $2         [Optional] Case-sensitive name of the target GitHub repository (falls back to APPLICATIONREPOSITORYNAME).
-#:   $3         [Optional] Target branch name to clone (defaults to "main").
-#:   $4         [Required] Local destination directory path to clone into.
+#:   $1         [Required] The name/slug of the repository to clone.
+#:   $2         [Required] The target branch name to clone.
+#:   $3         [Required] The local destination directory path.
+#:   $4         [Required] The GitHub workspace or repository owner name.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -20,12 +20,11 @@
 #: Dependencies:
 #:   - /home/homedir.dat
 #:   - ${HOME}/runtime/software.dat
-#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
 #:   - ${HOME}/services/git/github/${orchestration_tool}/clone_repository.sh
 #:   - External binaries: awk, cat, cut, echo, grep, ls, tr
 #:
 #: Exit Codes:
-#:   0          Repository cloned cleanly and destination directory path printed to stdout
+#:   0          Repository cloned cleanly and destination directory populated
 #:   1          Missing arguments, layout faults, configuration errors, or clone failure
 ###################################################################################
 # License Agreement:
@@ -44,6 +43,7 @@
 
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
 if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
         /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
@@ -58,19 +58,18 @@ else
         exit 1
 fi
 
-set +e
-repository_ownername="${1:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYOWNER')}"
-repository_name="${2:-$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYNAME')}"
-repository_branch="${3:-main}"
-destination_directory="${4}"
-set -e
-
-if [ -z "${repository_ownername}" ] || [ -z "${repository_name}" ] || [ -z "${repository_branch}" ] || [ -z "${destination_directory}" ]
+# Input validation
+if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
 then
-        /bin/echo "Error: Repository owner, name, branch, or destination directory could not be determined." >&2
-        /bin/echo "Usage: $0 <repository_ownername> <repository_name> <repository_branch> <destination_directory>" >&2
+        /bin/echo "Error: Missing required arguments." >&2
+        /bin/echo "Usage: $0 <repository_name> <branch> <destination_directory> <repository_ownername>" >&2
         exit 1
 fi
+
+repository_name="${1}"
+repository_branch="${2}"
+destination_directory="${3}"
+repository_ownername="${4}"
 
 software_file="${HOME}/runtime/software.dat"
 if [ ! -f "${software_file}" ] || [ ! -r "${software_file}" ]
@@ -91,12 +90,13 @@ worker_script="${HOME}/services/git/github/${orchestration_tool}/clone_repositor
 
 if [ ! -x "${worker_script}" ]
 then
-        /bin/echo "Error: Git clone script not found or not executable at ${worker_script}" >&2
+        /bin/echo "Error: Provider clone script not found or not executable at ${worker_script}" >&2
         exit 1
 fi
 
+# Temporarily disable set -e to evaluate git transaction failures manually
 set +e
-output="$(${worker_script} "${repository_branch}" "${repository_ownername}" "${repository_name}" "${destination_directory}")"
+output="$("${worker_script}" "${repository_name}" "${repository_branch}" "${destination_directory}" "${repository_ownername}")"
 clone_status="$?"
 set -e
 

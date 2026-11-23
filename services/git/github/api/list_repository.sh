@@ -5,12 +5,12 @@
 #: Date:        18/11/2026
 #: Version:     1.0
 #:
-#: Usage:       list_repository.sh <repository_ownername> <repository_name>
+#: Usage:       list_repository.sh <repository_name> <repository_ownername>
 #:              list_repository.sh [-h|--help]
 #:
 #: Parameters:
-#:   $1         [Required] The GitHub organisation or account owner name.
-#:   $2         [Required] The name/slug of the repository to inspect.
+#:   $1         [Required] The name/slug of the repository to inspect.
+#:   $2         [Required] The GitHub organisation or account owner name.
 #:
 #: Environment:
 #:   HOME       Resolved automatically from /home/homedir.dat
@@ -61,13 +61,13 @@ fi
 
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
-        /bin/echo "Error: Repository owner name and repository name arguments are required." >&2
-        /bin/echo "Usage: $0 <repository_ownername> <repository_name>" >&2
+        /bin/echo "Error: Repository name and repository owner name arguments are required." >&2
+        /bin/echo "Usage: $0 <repository_name> <repository_ownername> " >&2
         exit 1
 fi
 
-repository_ownername="${1}"
-repository_name="${2}"
+repository_name="${1}"
+repository_ownername="${2}"
 
 set +e
 REPOSITORY_TOKEN="$(${HOME}/utilities/config/ExtractConfigValue.sh 'APPLICATIONREPOSITORYTOKEN')"

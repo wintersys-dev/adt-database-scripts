@@ -92,7 +92,6 @@ if ( [ "${BUILD_ARCHIVE_CHOICE}" = "baseline" ] )
 then
         export REPOSITORY_TOKEN="${APPLICATION_REPOSITORY_TOKEN}"
         ${HOME}/services/git/CloneRepository.sh "${BASELINE_DB_REPOSITORY_NAME}" "main" "${HOME}/backups/installDB" 
-        #"${APPLICATION_REPOSITORY_PROVIDER}" "${APPLICATION_REPOSITORY_OWNER}"        
         unset REPOSITORY_TOKEN
 
         if ( [ -f ${HOME}/backups/installDB/applicationDB.sql ] )

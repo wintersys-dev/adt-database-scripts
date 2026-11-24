@@ -1,0 +1,27 @@
+If you want an alternative to Amazon Aurora Global Database—especially one that works on Linode (Akamai Cloud) or across multiple cloud regions with true multi-region active-active writes—TiDB or CockroachDB are the strongest options to choose.
+Unlike traditional MySQL, both are distributed SQL databases built from the ground up to accept writes in any region and synchronize them globally without manual replication scripts or ProxySQL workarounds.
+
+Best Alternatives to Amazon Aurora for Multi-Region Syncing
+
+
+Database	Compatibility	Multi-Region Write Model	Hosting on Linode / VPS	Best For
+TiDB (PingCAP)	MySQL 8.0 wire-compatible	True Active-Active (Raft consensus across regions)	Self-hosted on Linode VPS or TiDB Cloud (AWS/GCP/Azure)	Keeping your existing MySQL drivers/queries while gaining multi-region writes.
+CockroachDB	PostgreSQL wire-compatible	True Active-Active (Raft consensus + geo-partitioning)	Self-hosted on Linode VPS or CockroachDB Cloud	Automatic row-level geo-pinning (keeping EU data in EU, US data in US) with strong consistency.
+YugabyteDB	PostgreSQL wire-compatible	True Active-Active (Raft + optional async xCluster)	Self-hosted on Linode VPS or YugabyteDB Managed	High-throughput OLTP needing Postgres compatibility and flexible sync/async replication.
+PlanetScale (Vitess)	MySQL wire-compatible	Single-primary per shard, or Multi-Region Sharding	Managed Cloud (AWS/GCP) or self-hosted Vitess on Linode	Massive horizontal MySQL scaling where each region owns its own shard.
+Google Cloud Spanner	PostgreSQL & GoogleSQL	True Active-Active (TrueTime atomic clocks)	Google Cloud Only	Enterprise workloads needing near-zero RPO and 99.999% SLA across continents.
+Galera / Percona XtraDB	MySQL / MariaDB	True Active-Active (Synchronous certification)	Self-hosted on Linode VPS	Smaller 3–5 node MySQL setups where you want standard InnoDB without distributed storage overhead.
+
+
+Which One Fits Your 4-Region Linode Setup Best?
+
+• If you must keep MySQL compatibility & want zero app rewrites: Choose TiDB (self-hosted on your Linode VPS cluster) or Percona XtraDB Cluster. Both speak standard MySQL protocol, so your ADT application connects directly to each local regional node for both reads and writes.
+• If you are open to PostgreSQL: CockroachDB is widely considered the gold standard for multi-region active-active deployments. Its "Regional by Row" feature automatically stores and serves a user's data from their closest region while keeping the global schema unified.
+• If you want a fully managed SaaS (no VPS database maintenance): Use TiDB Cloud (MySQL) or CockroachDB Cloud (Postgres) and have your regional Linode VPS apps connect to their nearest cloud region endpoint.
+
+Key Trade-Off to Keep in Mind
+
+With any globally consistent active-active database (TiDB, CockroachDB, Spanner, or Galera), cross-region writes must wait for a quorum of regions to acknowledge the commit over the network. Expect local reads to take <2ms, while global writes will take roughly the round-trip latency to your nearest quorum region (30–100ms).
+To narrow down the exact deployment blueprint, let me know:
+• Are you locked into MySQL wire compatibility, or can your ADT app use PostgreSQL?
+• Do you prefer self-hosting on your 4 Linode VPS nodes or using a fully managed cloud database?

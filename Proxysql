@@ -1,0 +1,82 @@
+To use ProxySQL in front of multiple MySQL regions, you deploy a local ProxySQL instance alongside each Joomla web server and use query mirroring (mirror_hostgroup) to asynchronously duplicate write traffic to your remote regions.
+Running ProxySQL locally on each web server ensures Joomla gets fast local reads while ProxySQL handles the cross-region network overhead in the background.
+
+Architecture Overview
+
+• Hostgroup 10 (Local Primary): Your local region's MySQL server (handles all SELECT reads and primary INSERT/UPDATE/DELETE writes).
+• Hostgroup 20 (Remote Region 2): Secondary region's MySQL server (receives mirrored writes).
+• Hostgroup 30 (Remote Region 3): Tertiary region's MySQL server (receives mirrored writes).
+
+Step 1: Prevent Primary Key Collisions
+
+Before routing writes to multiple regions, configure auto_increment offsets on each MySQL server so regional writes never generate duplicate IDs for Joomla articles, users, or sessions.
+• Region 1 MySQL (my.cnf):ini
+auto_increment_increment = 3
+auto_increment_offset = 1
+Use code with caution.
+• Region 2 MySQL (my.cnf):ini
+auto_increment_increment = 3
+auto_increment_offset = 2
+Use code with caution.
+• Region 3 MySQL (my.cnf):ini
+auto_increment_increment = 3
+auto_increment_offset = 3
+Use code with caution.
+(Set auto_increment_increment to match your total number of active regions.)
+
+Step 2: Configure ProxySQL Backends & Users
+
+Connect to the ProxySQL admin interface (mysql -u admin -padmin -h 127.0.0.1 -P 6032) on your Region 1 server and register your databases and Joomla database user:
+sql
+-- 1. Add your MySQL servers to their respective hostgroups
+INSERT INTO mysql_servers (hostgroup_id, hostname, port) VALUES 
+(10, '10.0.1.10', 3306), -- Local Region 1 MySQL
+(20, '10.0.2.10', 3306), -- Remote Region 2 MySQL
+(30, '10.0.3.10', 3306); -- Remote Region 3 MySQL
+
+-- 2. Add your Joomla database user (must exist on all MySQL servers)
+INSERT INTO mysql_users (username, password, default_hostgroup) 
+VALUES ('joomla_user', 'your_strong_password', 10);
+
+-- 3. Apply changes to runtime and save to disk
+LOAD MYSQL SERVERS TO RUNTIME;
+SAVE MYSQL SERVERS TO DISK;
+LOAD MYSQL USERS TO RUNTIME;
+SAVE MYSQL USERS TO DISK;
+Use code with caution.
+
+Step 3: Set Up Write Mirroring Rules
+
+ProxySQL's mirror_hostgroup feature executes a query on the primary hostgroup (destination_hostgroup) and asynchronously fires a copy to the mirror hostgroup without making Joomla wait for the remote region to respond.
+Note: A single rule only accepts one mirror_hostgroup. To mirror to two remote regions, chain a second rule or point mirroring to a proxy/cascading setup. For two regions total (Local + 1 Remote), run:
+sql
+-- Rule 1: Send all writes (INSERT, UPDATE, DELETE, REPLACE) to Local (10) and mirror to Region 2 (20)
+INSERT INTO mysql_query_rules (rule_id, active, match_pattern, destination_hostgroup, mirror_hostgroup, apply)
+VALUES (10, 1, '^(INSERT|UPDATE|DELETE|REPLACE)', 10, 20, 1);
+
+-- Rule 2: Send all SELECT reads strictly to Local (10) for low latency
+INSERT INTO mysql_query_rules (rule_id, active, match_pattern, destination_hostgroup, apply)
+VALUES (20, 1, '^SELECT', 10, 1);
+
+-- Apply and save rules
+LOAD MYSQL QUERY RULES TO RUNTIME;
+SAVE MYSQL QUERY RULES TO DISK;
+Use code with caution.
+(Note: Exclude Joomla's #__session table from mirroring by adding a higher-priority rule—e.g., rule_id = 5 matching jos_session with no mirror_hostgroup—so temporary user sessions don't flood your cross-region bandwidth.)
+
+Step 4: Point Joomla to ProxySQL
+
+Update your Joomla configuration.php file so Joomla talks to ProxySQL instead of connecting directly to MySQL:
+php
+public $host = '127.0.0.1:6033'; // ProxySQL default SQL traffic port
+public $user = 'joomla_user';
+public $password = 'your_strong_password';
+public $db = 'joomla_db';
+Use code with caution.
+
+Important Caveats for Production
+
+• Fire-and-forget mirroring: ProxySQL's mirror_hostgroup is asynchronous and best-effort. If Region 2 is temporarily unreachable over the WAN, ProxySQL drops the mirrored query rather than queuing it indefinitely—so a network blip will cause data drift.
+• Connection encryption: Always enable SSL/TLS (use_ssl=1 in mysql_servers) when mirroring unencrypted SQL queries across public internet regions.
+• Non-deterministic queries: Queries using NOW(), RAND(), or UUID() will evaluate separately on each server, which can cause slight timestamp differences across regions.
+How many total regions are you connecting, and will every region be accepting writes from users/admins? Knowing this will help me give you the exact chaining rules if you have 3+ regions.

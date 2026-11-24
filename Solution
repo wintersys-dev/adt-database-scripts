@@ -1,0 +1,7 @@
+install tidb outside of the adt across multiple regiobs
+treat it like managed db
+for postgress use cockroachdb
+
+put mysql proxy on the databasevps that way the
+webservers can root to thst and dont need to
+update firewall for new webservers

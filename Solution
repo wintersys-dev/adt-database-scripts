@@ -1,7 +1,12 @@
-make it so that any database (aurora for example)
+9make it so that any database (aurora for example)
 can be configured in the gui and added to the
 trmpalte without making any api calls
 Put MANUAL into the complex string
+
+the init webservers (which can't be shutdown can be used as gateways to the
+DBaaS system. that way there's no worries about the firewall ip addresses for ant region needing
+to be added and removed)
+
 
 then do this so with adt-dbaas-gateway-machine.sh
 so that dbaas requests are routed to the

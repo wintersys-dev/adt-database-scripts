@@ -81,6 +81,34 @@ How the Capacity Reservation Protects the Gateway
 
 Step 2: Dynamic Multi-Gateway Failover on Autoscaled Webservers
 
+
+You populate /etc/dbaas_init_gateways.list with the private VPC IPv4 addresses of your init webservers (one per line), and you leave /run/dbaas_active_routes completely empty—the script manages it automatically.
+So, the put the private ip addresses of the init webservers into this file which can be discovered by the autoscalers and passed to the autoscaled
+webservers as part of their cloud-init process
+
+1. GATEWAY_LIST_FILE="/etc/dbaas_init_gateways.list"
+
+This is the input file that tells each autoscaled webserver which init servers it can use as NAT gateways.
+• Format: Plain text, one private VPC IP address per line, with no spaces, quotes, or ports.
+• Example contents (if you built three init webservers in that region):text
+10.10.0.12
+10.10.0.13
+10.10.0.14
+Use code with caution.
+• Important: Use the init webservers' private VPC IPs (e.g., 10.x.x.x or 192.168.x.x on eth1), not their public IPs—otherwise ip route replace ... via <GW_IP> will fail with Nexthop has invalid gateway.
+• How it gets populated in ADT: During your initial build, each init webserver writes its private VPC IP to your S3 datastore bucket (or ADT build machine), and each newly autoscaled webserver downloads and combines those IPs into /etc/dbaas_init_gateways.list on boot.
+
+2. STATE_FILE="/run/dbaas_active_routes"
+
+Do not put anything in this file manually.
+• What it is: An internal scratchpad stored in RAM (/run) that the failover script writes to itself every 3 seconds.
+• What the script writes inside it: Pairs of <resolved_dbaas_ip>:<active_gateway_ip> (for example, 52.94.12.88:10.10.0.12).
+• Why it exists: If your DBaaS uses a dynamic DNS hostname (like AWS Aurora) and its underlying IP address rotates during a database failover, the script compares the new DNS IP against /run/dbaas_active_routes so it knows which old /32 route to delete from the Linux routing table.
+If you want to wire the automatic generation of /etc/dbaas_init_gateways.list directly into your ADT scripts, let me know:
+• Whether your ADT build uses s3cmd / aws CLI to sync runtime files across webservers
+• Which network interface name (eth1, ens7, etc.) holds the private VPC IP on your cloud provider
+
+
 Install this script on non-init webservers at /usr/local/sbin/dbaas-route-failover.sh. It works with 1, 2, 5, or any number of init webservers automatically:
 bash
 #!/bin/bash

@@ -1,3 +1,117 @@
+
+Because your proxy must automatically split reads and writes across regional Linode Managed MySQL databases, ProxySQL is the right choice.
+Linode Managed Databases enforce SSL/TLS connections and expose separate hostnames/ports for your primary cluster and read replicas (or regional clusters). By running ProxySQL on each regional VPS, your local applications connect to 127.0.0.1:6033 without TLS overhead, while ProxySQL maintains persistent, SSL-encrypted connection pools to Linode—routing writes to your primary region and reads to your nearest regional replica. [1] (https://oneuptime.com/blog/post/2026-03-31-mysql-linode-managed-database/view)
+
+1. Prerequisites on Linode
+
+Before configuring the VPS, gather these details from the Linode Cloud Manager or via the Linode CLI:
+• Primary Endpoint & Port: Your main read/write Linode Managed MySQL hostname and port (usually a custom port like 3306 or 25060).
+• Replica Endpoint & Port: Your regional read-only replica hostname and port.
+• CA Certificate: Linode Managed MySQL requires SSL. Download the cluster's CA certificate to each VPS (e.g., /etc/proxysql-ca.pem): [1] (https://oneuptime.com/blog/post/2026-03-31-mysql-linode-managed-database/view)
+bash
+linode-cli databases mysql-ssl-cert <CLUSTER_ID> --text --no-headers > /etc/proxysql-ca.pem
+Use code with caution.
+• Access Control (Allowlist): Add the public/private IP addresses of every regional VPS to the Access Controls allowlist on your Linode Managed Database clusters.
+• Monitoring User: Create a dedicated user in your Linode MySQL database (e.g., proxysql_mon) with USAGE, REPLICATION CLIENT privileges so ProxySQL can check backend health and replication lag.
+
+2. Install ProxySQL on Each Regional VPS
+
+On Ubuntu/Debian-based VPS machines, install ProxySQL from the official repository:
+bash
+apt-get update && apt-get install -y lsb-release wget gnupg2 mysql-client
+wget -O - 'https://proxysql.com' | apt-key add -
+echo deb https://proxysql.com(lsb_release -sc)/ ./ | tee /etc/apt/sources.list.d/proxysql.list
+apt-get update && apt-get install -y proxysql
+systemctl enable --now proxysql
+Use code with caution.
+
+3. Configure ProxySQL for Read/Write Splitting & SSL
+
+Log into the local ProxySQL admin interface on your VPS:
+bash
+mysql -u admin -padmin -h 127.0.0.1 -P 6032 --prompt='ProxySQL Admin> '
+Use code with caution.
+Run the following SQL commands inside the ProxySQL Admin shell to configure SSL, backend servers, users, and read/write routing rules.
+
+A. Enable Backend SSL Verification
+
+Point ProxySQL to the Linode CA certificate you downloaded:
+sql
+SET mysql-ssl_p2s_ca='/etc/proxysql-ca.pem';
+LOAD MYSQL VARIABLES TO RUNTIME;
+SAVE MYSQL VARIABLES TO DISK;
+Use code with caution.
+
+B. Add Linode Managed MySQL Nodes (Hostgroups)
+
+Use Hostgroup 10 for Writes (Primary) and Hostgroup 20 for Reads (Local Regional Replica). Notice use_ssl=1 is mandatory for Linode: [1] (https://stackoverflow.com/questions/58993474/proxysql-ssl-backend-configuration-from-the-config-file), [2] (https://oneuptime.com/blog/post/2026-03-31-mysql-linode-managed-database/view)
+sql
+INSERT INTO mysql_servers (hostgroup_id, hostname, port, use_ssl, max_connections, comment)
+VALUES 
+  (10, 'primary-db.us-east.linodedb.net', 3306, 1, 100, 'Linode Primary Writer'),
+  (20, 'replica-db.eu-west.linodedb.net', 3306, 1, 200, 'Linode Regional Reader');
+
+-- Optional: Add primary as a low-weight backup reader in HG 20 in case the regional replica lags or fails
+INSERT INTO mysql_servers (hostgroup_id, hostname, port, use_ssl, weight, max_connections, comment)
+VALUES 
+  (20, 'primary-db.us-east.linodedb.net', 3306, 1, 10, 100, 'Primary Fallback Reader');
+Use code with caution.
+
+C. Configure Health & Replication Lag Monitoring
+
+Set your Linode monitoring credentials so ProxySQL automatically drops a replica from Hostgroup 20 if it falls behind:
+sql
+UPDATE global_variables SET variable_value='proxysql_mon' WHERE variable_name='mysql-monitor_username';
+UPDATE global_variables SET variable_value='YourStrongMonPassword' WHERE variable_name='mysql-monitor_password';
+UPDATE global_variables SET variable_value='2000' WHERE variable_name='mysql-monitor_ping_interval';
+Use code with caution.
+(Note: Set max_replication_lag on your reader row in mysql_servers—e.g., UPDATE mysql_servers SET max_replication_lag=5 WHERE hostgroup_id=20 AND weight > 10;—to ensure stale reads fall back to the primary.)
+
+D. Add Your Application Database User
+
+Add the MySQL user your application uses to authenticate. Setting default_hostgroup=10 ensures all unclassified queries and transactions safely default to the Primary Writer: [1] (https://proxysql.com/blog/configure-read-write-split/)
+sql
+INSERT INTO mysql_users (username, password, default_hostgroup, transaction_persistent, active)
+VALUES ('app_user', 'YourAppDBPassword', 10, 1, 1);
+Use code with caution.
+(Setting transaction_persistent=1 guarantees that once a BEGIN / START TRANSACTION starts on the writer, all SELECT statements inside that transaction stay on the writer until COMMIT.)
+
+E. Create Read/Write Splitting Rules
+
+Route SELECT ... FOR UPDATE to the writer (HG 10), and all standard SELECT queries to the regional reader (HG 20): [1] (https://oneuptime.com/blog/post/2026-03-31-mysql-how-to-configure-read-write-splitting-with-proxysql-for-mysq/view), [2] (https://proxysql.com/blog/configure-read-write-split/)
+sql
+INSERT INTO mysql_query_rules (rule_id, active, match_digest, destination_hostgroup, apply)
+VALUES 
+  (1, 1, '^SELECT.*FOR UPDATE$', 10, 1),
+  (2, 1, '^SELECT', 20, 1);
+Use code with caution.
+
+F. Apply and Persist Everything
+
+sql
+LOAD MYSQL SERVERS TO RUNTIME;
+SAVE MYSQL SERVERS TO DISK;
+
+LOAD MYSQL USERS TO RUNTIME;
+SAVE MYSQL USERS TO DISK;
+
+LOAD MYSQL QUERY RULES TO RUNTIME;
+SAVE MYSQL QUERY RULES TO DISK;
+Use code with caution.
+
+4. Connect Your Application & Verify
+
+1. Update App Config: Point your regional application's database host to 127.0.0.1 and port to 6033. You can disable SSL on the local loopback connection between your app and ProxySQL to save CPU, as ProxySQL encrypts the outbound leg to Linode. [1] (https://severalnines.com/resources/whitepapers/database-load-balancing-for-mysql-and-mariadb-with-proxysql/), [2] (https://www.youtube.com/watch?v=NrSRwy4TY-E)
+2. Verify Routing: Run a few reads and writes through port 6033, then check ProxySQL's routing stats on port 6032 to confirm traffic is splitting properly:sql
+SELECT hostgroup, schemaname, count_star, sum_time, digest_text 
+FROM stats_mysql_query_digest 
+ORDER BY count_star DESC LIMIT 10;
+Use code with caution.
+If you'd like to fine-tune this setup, let me know:
+• Whether your application uses MySQL 8 caching_sha2_password authentication (which requires a specific ProxySQL user flag)
+• If you want to add cross-region failover weights across multiple replicas
+
+
 To use ProxySQL in front of multiple MySQL regions, you deploy a local ProxySQL instance alongside each Joomla web server and use query mirroring (mirror_hostgroup) to asynchronously duplicate write traffic to your remote regions.
 Running ProxySQL locally on each web server ensures Joomla gets fast local reads while ProxySQL handles the cross-region network overhead in the background.
 

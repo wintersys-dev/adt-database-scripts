@@ -144,3 +144,25 @@ Why This Hits Every Requirement
 If you want to test or refine any piece of this before adding it to your fork, let me know:
 • Which CMS (WordPress, Drupal, Joomla, Moodle) you want the exact SSL config snippet for
 • Whether your gateways and webservers use Ubuntu or Debian so I can double-check interface naming (eth0 vs ens3/enp1s0)
+
+
+Yes, it works across different regions—with one important rule: put the two NAT Gateways in the same region as the webservers, not in the database's region.
+Because ip route replace <IP>/32 via <GW_PRIVATE_IP> routes packets over a private VPC network, the webservers and their two NAT Gateways must share the same regional private network/VPC. Once traffic hits that region's NAT Gateway, the gateway forwards it across the public internet to the remote database region using its static public IP.
+
+How Multi-Region Routing Looks
+
+Show Code
+Download diagram SVG
+
+What You Do for Each Region
+
+• 2 small NAT Gateways per webserver region: For example, if you deploy webservers in London and Frankfurt, spin up 2 small NAT Gateways in London (2 static IPs) and 2 small NAT Gateways in Frankfurt (2 static IPs).
+• Whitelist all 4 static IPs once in the DBaaS GUI: Your database firewall simply allows those 4 static IPv4 addresses—zero dynamic API updates regardless of how many webservers scale up or down in either region.
+• Keep DB_GATEWAY_PRIMARY and DB_GATEWAY_BACKUP per-region in your ADT templates: Each region's ADT build template already has its own config file, so you simply put that region's two private gateway IPs into its template.
+(Note: If you later use AWS Aurora Global Database where Frankfurt webservers connect to a local Frankfurt Aurora endpoint and London webservers connect to a London Aurora endpoint, this exact same setup still works out of the box—each region's dbaas-route-failover.sh simply resolves its own template's DB_HOST and routes it through its local regional NAT Gateways.)
+If you want to make sure there are no subtle networking snags when testing across regions, let me know:
+• Which cloud provider you'll use for your webservers first (DigitalOcean, Linode, Vultr, or Exoscale)
+• Whether your webservers will have both a public IP and a private VPC IP or private VPC IP only
+I can verify the exact ip route interface behavior so private routing never conflicts with the webserver's default public gateway.
+
+

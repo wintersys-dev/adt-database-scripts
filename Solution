@@ -23,7 +23,7 @@ bash
 #!/bin/bash
 set -e
 
-PUBLIC_IF="eth0"
+PUBLIC_IF="eth0" (this might be different on ubuntu and debian)
 VPC_CIDR="10.0.0.0/16"
 
 # 1. Enable IPv4 forwarding permanently

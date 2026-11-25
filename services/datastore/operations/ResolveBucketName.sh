@@ -78,16 +78,25 @@ then
         exit 1
 fi
 
+HOSTNAME_VAL="$(/usr/bin/hostname)"
+
 # Retrieve core deployment context variables from node configuration
-WEBSITE_URL="$("${config_extractor}" 'WEBSITEURL')"
-DNS_CHOICE="$("${config_extractor}" 'DNSCHOICE')"
-SSL_GENERATION_SERVICE="$("${config_extractor}" 'SSLGENERATIONSERVICE')"
+if /bin/echo "${HOSTNAME_VAL}" | /bin/grep -q '\-auth-'
+then
+        WEBSITE_URL="$("${config_extractor}" 'AUTHSERVERURL')"
+        DNS_CHOICE="$("${config_extractor}" 'AUTHDNSCHOICE')"
+else
+        WEBSITE_URL="$("${config_extractor}" 'WEBSITEURL')"
+        DNS_CHOICE="$("${config_extractor}" 'DNSCHOICE')"
+fi
 
 if [ -z "${WEBSITE_URL}" ] && [ "${bucket_type}" != "auth" ] && [ "${bucket_type}" != "auth-ssl" ] && [ "${bucket_type}" != "auth-config" ] && [ "${bucket_type}" != "ad-hoc" ] && [ "${bucket_type}" != "all" ]
 then
         /bin/echo "Error: Failed to fetch required configuration variable WEBSITEURL." >&2
         exit 1
 fi
+
+SSL_GENERATION_SERVICE="$("${config_extractor}" 'SSLGENERATIONSERVICE')"
 
 # Resolve config suffix: prefer explicit specifier if supplied, otherwise derive from SERVERUSER
 config_suffix="${additional_specifier}"

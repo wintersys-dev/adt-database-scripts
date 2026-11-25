@@ -65,7 +65,7 @@ then
         fi
         if ( [ "${EMAIL_PROVIDER}" = "3" ] )
         then
-                /bin/echo "mailhub=email-smtp.eu-west-1.amazonaws.com" >> /etc/ssmtp/ssmtp.conf
+                /bin/echo "mailhub=email-smtp.eu-west-1.amazonaws.com:587" >> /etc/ssmtp/ssmtp.conf
         fi
 
         /bin/echo "AuthUser=${USERNAME}" >> /etc/ssmtp/ssmtp.conf

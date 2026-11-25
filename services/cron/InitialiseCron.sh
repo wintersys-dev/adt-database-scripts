@@ -129,11 +129,11 @@ logging=" >>${HOME}/runtime/logs/crontab/log.out 2>>${HOME}/runtime/logs/crontab
 
 # Scheduled database backup tasks
 {
-        /bin/echo "2 * * * * ${HOME}/services/cron/BackupFromCron.sh 'HOURLY' ${logging}"
-        /bin/echo "30 2 * * * ${HOME}/services/cron/BackupFromCron.sh 'DAILY' ${logging}"
-        /bin/echo "30 3 * * 7 ${HOME}/services/cron/BackupFromCron.sh 'WEEKLY' ${logging}"
-        /bin/echo "30 4 1 * * ${HOME}/services/cron/BackupFromCron.sh 'MONTHLY' ${logging}"
-        /bin/echo "30 5 1 Jan,Mar,May,Jul,Sep,Nov * ${HOME}/services/cron/BackupFromCron.sh 'BIMONTHLY' ${logging}"
+        /bin/echo "2 * * * * ${HOME}/services/cron/BackupFromCron.sh 'hourly' ${logging}"
+        /bin/echo "30 2 * * * ${HOME}/services/cron/BackupFromCron.sh 'daily' ${logging}"
+        /bin/echo "30 3 * * 7 ${HOME}/services/cron/BackupFromCron.sh 'weekly' ${logging}"
+        /bin/echo "30 4 1 * * ${HOME}/services/cron/BackupFromCron.sh 'monthly' ${logging}"
+        /bin/echo "30 5 1 Jan,Mar,May,Jul,Sep,Nov * ${HOME}/services/cron/BackupFromCron.sh 'bimonthly' ${logging}"
 } >> "${tmp_cron}"
 
 # Daily, hourly, and maintenance tasks

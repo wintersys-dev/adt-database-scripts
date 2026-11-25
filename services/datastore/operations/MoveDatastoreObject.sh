@@ -86,7 +86,7 @@ log_error()
 if [ -z "${1}" ] || [ -z "${2}" ] || [ -z "${3}" ] || [ -z "${4}" ]
 then
         log_error "4 arguments are required and 1 optional argument"
-        /bin/echo "Usage: $0 <bucket_type> <original_object> <new_object> <mode> <additional_specifier>" >&2
+        /bin/echo "Usage: $0 <bucket_type> <original_object> <new_object> <mode> [additional_specifier]" >&2
         exit 1
 fi
 

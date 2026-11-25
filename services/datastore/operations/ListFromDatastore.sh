@@ -82,7 +82,7 @@ log_error()
 if [ -z "${1}" ] || [ -z "${2}" ]
 then
         log_error "2 arguments are required and 1 optional argument"
-        /bin/echo "Usage: $0 <bucket_type> <file_to_list> <additional_specifier>" >&2
+        /bin/echo "Usage: $0 <bucket_type> <file_to_list> [additional_specifier]" >&2
         exit 1
 fi
 

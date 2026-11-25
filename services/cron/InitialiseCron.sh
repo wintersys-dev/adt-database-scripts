@@ -1,11 +1,33 @@
 #!/bin/sh
-####################################################################################
-#Description: This script will setup your crontab for you
-# Author: Peter Winter
-# Date: 28/01/2017
-####################################################################################
+#: Name:        InitialiseCron.sh
+#: Purpose:     Generates and installs the root crontab schedule for a database server node.
+#: Author:      Peter Winter
+#: Date:        25/11/2026
+#: Version:     1.0
+#:
+#: Usage:       InitialiseCron.sh
+#:              InitialiseCron.sh [-h|--help]
+#:
+#: Parameters:
+#:   None       Reads home directory from /home/homedir.dat and deployment settings via ExtractConfigValue.sh.
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/utilities/config/ExtractBuildStyleValues.sh
+#:   - ${HOME}/utilities/config/CheckBuildStyle.sh
+#:   - ${HOME}/utilities/processing/RunServiceCommand.sh
+#:   - External binaries: cat, echo, grep, cut, awk, mktemp, rm, crontab, shuf, nice, sleep
+#:
+#: Exit Codes:
+#:   0          Root crontab generated, installed, and cron service restarted cleanly
+#:   1          Missing /home/homedir.dat, missing config helpers, or crontab installation failure
+###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -15,78 +37,154 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
-#####################################################################################
-#Setup crontab
+# along with The Wintersys Agile Deployment Toolkit.  If not, see <http://gnu.org>.
+####################################################################################
 
-if ( [ -f /var/spool/cron/crontabs/root ] )
+# Exit immediately if any command exits with a non-zero status
+#set -x
+set -e
+
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
-	/bin/rm /var/spool/cron/crontabs/root
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
 fi
 
-/bin/echo "MAILTO=''" > /var/spool/cron/crontabs/root
-HOME="`/bin/cat /home/homedir.dat`"
-
-#These scripts run every minute
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/utilities/security/AuditSSHConnections.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/services/cron/SetupFirewallFromCron.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && /bin/sleep 30 && ${HOME}/utilities/processing/UpdateIPs.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME=${HOME} && ${HOME}/utilities/housekeeping/RemoveExpiredLocks.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/utilities/status/MonitorForOverload.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/utilities/status/IsDatabaseUp.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/utilities/status/CheckNetworkManagerStatus.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/1 * * * * export HOME="${HOME}" && ${HOME}/services/cron/PerformEmergencyRestorationFromCron.sh" >> /var/spool/cron/crontabs/root
-
-#These scripts run every 5 minutes
-/bin/echo "*/5 * * * * export HOME="${HOME}" &&  /bin/sleep 23 && ${HOME}/services/security/firewall/MonitorFirewall.sh" >> /var/spool/cron/crontabs/root
-
-#These scripts run ever 10 minutes
-/bin/echo "*/10 * * * * export HOME=${HOME} && ${HOME}/utilities/security/EnforcePermissions.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "*/10 * * * * export HOME="${HOME}" && ${HOME}/utilities/status/MonitorCron.sh" >> /var/spool/cron/crontabs/root
-
-#The scripts run at set times
-
-/bin/echo "2 * * * * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'HOURLY'" >>/var/spool/cron/crontabs/root
-/bin/echo "30 2 * * * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'DAILY'" >>/var/spool/cron/crontabs/root
-/bin/echo "30 3 * * 7 export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'WEEKLY'" >>/var/spool/cron/crontabs/root
-/bin/echo "30 4 1 * * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'MONTHLY'" >>/var/spool/cron/crontabs/root
-/bin/echo "30 5 1 Jan,Mar,May,Jul,Sep,Nov * export HOME=${HOME} && ${HOME}/services/cron/BackupFromCron.sh 'BIMONTHLY'" >>/var/spool/cron/crontabs/root
-/bin/echo "22 4 * * *  export HOME="${HOME}" && ${HOME}/utilities/software/UpdateSoftware.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "44 4 * * *  export HOME="${HOME}" && ${HOME}/installation/UpdateAndUpgrade.sh" >> /var/spool/cron/crontabs/root
-
-/bin/echo "30 3 * * *  export HOME="${HOME}" && ${HOME}/utilities/housekeeping/RemoveExpiredLogs.sh" >> /var/spool/cron/crontabs/root
-
-/bin/echo "@hourly export HOME="${HOME}" && ${HOME}/utilities/status/LoadMonitoring.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "@daily  export HOME="${HOME}" && ${HOME}/utilities/housekeeping/ArchiveErrorLogs.sh" >> /var/spool/cron/crontabs/root
-
-SERVER_TIMEZONE_CONTINENT="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERTIMEZONECONTINENT'`"
-SERVER_TIMEZONE_CITY="`${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERTIMEZONECITY'`"
-/bin/echo '@reboot export TZ="':${SERVER_TIMEZONE_CONTINENT}/${SERVER_TIMEZONE_CITY}'"' >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/housekeeping/CleanupAtReboot.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME=${HOME} && ${HOME}/utilities/housekeeping/RemoveExpiredLocks.sh reboot" >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/processing/GetIP.sh" >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/status/LoadMonitoring.sh 'reboot'" >> /var/spool/cron/crontabs/root
-/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/utilities/status/CheckNetworkManagerStatus.sh" >> /var/spool/cron/crontabs/root
-
-if ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "DATASTORECONFIGSTYLE" | /usr/bin/awk -F':' '{print $NF}'`" = "lightweight" ] )
+# Resolve the toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
 then
-	/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/services/datastore/config/ActivateConfigDatastoreLightweight.sh" >> /var/spool/cron/crontabs/root
-elif ( [ "`${HOME}/utilities/config/ExtractBuildStyleValues.sh "DATASTORECONFIGSTYLE" | /usr/bin/awk -F':' '{print $NF}'`" = "heavyweight" ] )
-then
-	/bin/echo "@reboot export HOME="${HOME}" && ${HOME}/services/datastore/config/ActivateConfigDatastoreHeavyweight.sh" >> /var/spool/cron/crontabs/root
+        HOME="$(/bin/cat /home/homedir.dat)"
+else
+        /bin/echo "Error: Home configuration file missing at /home/homedir.dat" >&2
+        exit 1
 fi
 
-if ( [ "`${HOME}/utilities/config/CheckBuildStyle.sh 'VIRUSSCANNER:'`" = "1" ]  )
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
 then
-	periodicity="`${HOME}/utilities/config/ExtractBuildStyleValues.sh 'VIRUSSCANNER' | /usr/bin/awk -F':' '{print $NF}'`"
-
-	if ( [ "`/bin/echo daily weekly monthly | /bin/grep ${periodicity}`" != "" ] )
-	then
-		/bin/echo "@${periodicity} export HOME="${HOME}" && /bin/sleep `/usr/bin/shuf -i1-1000 -n1` && /usr/bin/nice -n 15 ${HOME}/utilities/security/VirusScan.sh" >> /var/spool/cron/crontabs/root
-	fi  
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
 fi
 
-#Reload cron
-/usr/bin/crontab /var/spool/cron/crontabs/root
+# Verify required configuration helpers exist
+config_extractor="${HOME}/utilities/config/ExtractConfigValue.sh"
+style_extractor="${HOME}/utilities/config/ExtractBuildStyleValues.sh"
+style_checker="${HOME}/utilities/config/CheckBuildStyle.sh"
 
-${HOME}/utilities/processing/RunServiceCommand.sh "cron" restart
+if [ ! -x "${config_extractor}" ] || [ ! -x "${style_extractor}" ] || [ ! -x "${style_checker}" ]
+then
+        /bin/echo "Error: One or more configuration helper scripts are missing or not executable under ${HOME}/utilities/config/" >&2
+        exit 1
+fi
+
+# Stage the new crontab in a temporary file before installing via crontab(1)
+tmp_cron="$(/bin/mktemp)"
+cleanup()
+{
+        /bin/rm -f "${tmp_cron}"
+}
+trap cleanup EXIT INT TERM HUP QUIT
+
+# Resolve timezone settings from deployment configuration
+SERVER_TIMEZONE_CONTINENT="$("${config_extractor}" 'SERVERTIMEZONECONTINENT')"
+SERVER_TIMEZONE_CITY="$("${config_extractor}" 'SERVERTIMEZONECITY')"
+
+# Write global cron environment headers
+{
+        /bin/echo "MAILTO=''"
+        /bin/echo "HOME=${HOME}"
+        if [ -n "${SERVER_TIMEZONE_CONTINENT}" ] && [ -n "${SERVER_TIMEZONE_CITY}" ]
+        then
+                /bin/echo "TZ=:${SERVER_TIMEZONE_CONTINENT}/${SERVER_TIMEZONE_CITY}"
+        fi
+} > "${tmp_cron}"
+
+# Every minute tasks
+{
+        /bin/echo "*/1 * * * * ${HOME}/utilities/security/AuditSSHConnections.sh"
+        /bin/echo "*/1 * * * * ${HOME}/services/cron/SetupFirewallFromCron.sh"
+        /bin/echo "*/1 * * * * /bin/sleep 30 && ${HOME}/utilities/processing/UpdateIPs.sh"
+        /bin/echo "*/1 * * * * ${HOME}/utilities/housekeeping/RemoveExpiredLocks.sh"
+        /bin/echo "*/1 * * * * ${HOME}/utilities/status/MonitorForOverload.sh"
+        /bin/echo "*/1 * * * * ${HOME}/utilities/status/IsDatabaseUp.sh"
+        /bin/echo "*/1 * * * * ${HOME}/utilities/status/CheckNetworkManagerStatus.sh"
+        /bin/echo "*/1 * * * * ${HOME}/services/cron/PerformEmergencyRestorationFromCron.sh"
+} >> "${tmp_cron}"
+
+# Every 5 minutes tasks
+/bin/echo "*/5 * * * * /bin/sleep 23 && ${HOME}/services/security/firewall/MonitorFirewall.sh" >> "${tmp_cron}"
+
+# Every 10 minutes tasks
+{
+        /bin/echo "*/10 * * * * ${HOME}/utilities/security/EnforcePermissions.sh"
+        /bin/echo "*/10 * * * * ${HOME}/utilities/status/MonitorCron.sh"
+} >> "${tmp_cron}"
+
+# Scheduled database backup tasks
+{
+        /bin/echo "2 * * * * ${HOME}/services/cron/BackupFromCron.sh 'HOURLY'"
+        /bin/echo "30 2 * * * ${HOME}/services/cron/BackupFromCron.sh 'DAILY'"
+        /bin/echo "30 3 * * 7 ${HOME}/services/cron/BackupFromCron.sh 'WEEKLY'"
+        /bin/echo "30 4 1 * * ${HOME}/services/cron/BackupFromCron.sh 'MONTHLY'"
+        /bin/echo "30 5 1 Jan,Mar,May,Jul,Sep,Nov * ${HOME}/services/cron/BackupFromCron.sh 'BIMONTHLY'"
+} >> "${tmp_cron}"
+
+# Daily, hourly, and maintenance tasks
+{
+        /bin/echo "22 4 * * * ${HOME}/utilities/software/UpdateSoftware.sh"
+        /bin/echo "44 4 * * * ${HOME}/installation/UpdateAndUpgrade.sh"
+        /bin/echo "30 3 * * * ${HOME}/utilities/housekeeping/RemoveExpiredLogs.sh"
+        /bin/echo "@hourly ${HOME}/utilities/status/LoadMonitoring.sh"
+        /bin/echo "@daily ${HOME}/utilities/housekeeping/ArchiveErrorLogs.sh"
+} >> "${tmp_cron}"
+
+# Reboot initialization tasks
+{
+        /bin/echo "@reboot ${HOME}/utilities/housekeeping/CleanupAtReboot.sh"
+        /bin/echo "@reboot ${HOME}/utilities/housekeeping/RemoveExpiredLocks.sh reboot"
+        /bin/echo "@reboot ${HOME}/utilities/processing/GetIP.sh"
+        /bin/echo "@reboot ${HOME}/utilities/status/LoadMonitoring.sh 'reboot'"
+        /bin/echo "@reboot ${HOME}/utilities/status/CheckNetworkManagerStatus.sh"
+} >> "${tmp_cron}"
+
+datastore_style="$("${style_extractor}" "DATASTORECONFIGSTYLE" | /usr/bin/awk -F':' '{print $NF}')"
+case "${datastore_style}" in
+        lightweight)
+                /bin/echo "@reboot ${HOME}/services/datastore/config/ActivateConfigDatastoreLightweight.sh" >> "${tmp_cron}"
+                ;;
+        heavyweight)
+                /bin/echo "@reboot ${HOME}/services/datastore/config/ActivateConfigDatastoreHeavyweight.sh" >> "${tmp_cron}"
+                ;;
+esac
+
+# Optional scheduled virus scan based on build style
+if [ "$("${style_checker}" 'VIRUSSCANNER:')" = "1" ]
+then
+        periodicity="$("${style_extractor}" 'VIRUSSCANNER' | /usr/bin/awk -F':' '{print $NF}')"
+        case "${periodicity}" in
+                daily|weekly|monthly)
+                        /bin/echo "@${periodicity} /bin/sleep \$(/usr/bin/shuf -i1-1000 -n1) && /usr/bin/nice -n 15 ${HOME}/utilities/security/VirusScan.sh" >> "${tmp_cron}"
+                        ;;
+        esac
+fi
+
+# Install the staged crontab safely via crontab(1)
+if ! /usr/bin/crontab -u root "${tmp_cron}"
+then
+        /bin/echo "Error: Failed to install root crontab from staging file." >&2
+        exit 1
+fi
+
+# Restart the cron daemon to apply schedule changes cleanly
+service_runner="${HOME}/utilities/processing/RunServiceCommand.sh"
+if [ -x "${service_runner}" ]
+then
+        "${service_runner}" "cron" restart
+else
+        /bin/echo "Error: Service runner missing or not executable at ${service_runner}" >&2
+        exit 1
+fi
+
+exit 0
+
+

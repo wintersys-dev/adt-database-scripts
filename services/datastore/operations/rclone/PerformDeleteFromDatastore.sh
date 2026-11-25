@@ -1,37 +1,32 @@
-#!/bin/sh 
-###################################################################################
-# @file        PerformDeleteFromDatastore.sh
-# @brief       Automated S3 Datastore Object Purging & Empty Directory Removal Driver.
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     This script automates low-level data removal operations inside targeted
-#              cloud datastores. It parses endpoints directly from partitioned rclone
-#              profile configurations, processes special 'root' overrides for tree 
-#              wipes, and commands the underlying storage layout engine to delete objects
-#              and prune unmapped parent directory trees safely.
-#
-# @param       $1  [Required] S3 bucket target pathway and the specific object key to delete.
-# @param       $2  [Required] Integer configuration ID used to select the targeted rclone profile suffix.
-#
-# @env         None explicitly sourced from top-level environment registers.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - /usr/bin/rclone storage integration engine software utility.
-#              - /root/.config/rclone/rclone.conf-${count} targeted cluster registration file.
-#
-# @security    
-#              - Restricts validation actions strictly to isolated tenant access keys inside config spaces.
-#              - Suppresses downstream standard error channels (`2>/dev/null`) to block credential exposure.
-#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent malicious search path injection.
-#
-# @exit        0  Success: Target object successfully purged from the datastore namespace.
-# @exit        1  Failure: Missing mandatory parameters or rclone execution driver failure.
+#!/bin/sh
+#: Name:        PerformDeleteFromDatastore.sh
+#: Purpose:     Automated S3 datastore object purging and empty directory removal driver using rclone.
+#: Author:      Peter Winter
+#: Date:        25/11/2026
+#: Version:     1.0
+#:
+#: Usage:       PerformDeleteFromDatastore.sh <file_to_delete> <count>
+#:              PerformDeleteFromDatastore.sh [-h|--help]
+#:
+#: Parameters:
+#:   $1         [Required] Target S3 bucket and object key path (trailing "root" enables --rmdirs pruning)
+#:   $2         [Required] Integer configuration ID selecting /root/.config/rclone/rclone.conf-<count>
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - /usr/bin/rclone
+#:   - /root/.config/rclone/rclone.conf-<count>
+#:   - External binaries: cat, echo, grep, cut, date, dirname, mkdir, awk, tr, sleep
+#:
+#: Exit Codes:
+#:   0          Target object purged cleanly from the datastore namespace
+#:   1          Missing /home/homedir.dat, missing arguments, missing rclone config, or deletion failure
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -42,15 +37,25 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat"
+        /bin/echo "Error: Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
@@ -64,6 +69,38 @@ LOG_FILE="${HOME}/runtime/logs/datastore/DeleteFromDatastore.log"
 log_error() {
     /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE" 2>/dev/null || true
 }
+
+# Execute a command up to max_attempts times with a short sleep between failures
+retry_command()
+{
+        max_attempts=5
+        sleep_interval=3
+        attempt=1
+
+        while true
+        do
+                set +e
+                "$@"
+                exit_code="$?"
+                set -e
+
+                if [ "${exit_code}" -eq 0 ]
+                then
+                        return 0
+                fi
+
+                if [ "${attempt}" -ge "${max_attempts}" ]
+                then
+                        log_error  "Error: Datastore command failed after ${max_attempts} attempts (exit code ${exit_code})."
+                        return "${exit_code}"
+                fi
+
+                log_error "Warning: Datastore command failed (attempt ${attempt}/${max_attempts}). Retrying in ${sleep_interval}s..."
+                attempt="$(/usr/bin/expr "${attempt}" + 1)"
+                /bin/sleep "${sleep_interval}"
+        done
+}
+
 
 if [ -z "$1" ] || [ -z "$2" ]
 then
@@ -96,9 +133,9 @@ fi
 set +e
 if [ -n "$rmdirs" ]
 then
-    /usr/bin/rclone --config "$cfg_file" --s3-endpoint "$host_base" delete "s3:${file_to_delete}" --rmdirs >/dev/null 2>&1
+    retry_command /usr/bin/rclone --config "$cfg_file" --s3-endpoint "$host_base" delete "s3:${file_to_delete}" --rmdirs >/dev/null 2>&1
 else
-    /usr/bin/rclone --config "$cfg_file" --s3-endpoint "$host_base" delete "s3:${file_to_delete}" >/dev/null 2>&1
+    retry_command /usr/bin/rclone --config "$cfg_file" --s3-endpoint "$host_base" delete "s3:${file_to_delete}" >/dev/null 2>&1
 fi
 rclone_status=$?
 set -e

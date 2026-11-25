@@ -1,44 +1,35 @@
 #!/bin/sh
-###################################################################################
-# @file        MountDatastore.sh
-# @brief       Context-Aware S3 Datastore Provisioning and Mounting Utility.
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     This script automates datastore mounting and initialization tasks 
-#              across multi-mode cloud infrastructures. It dynamically parses and 
-#              constructs target S3 bucket names based on structural types. 
-#              It handles standard execution paths via a single standalone endpoint 
-#              ("local" mode) or distributes operations concurrently across 
-#              multi-region configurations ("distributed" mode).
-#
-# @param       $1  [Required] The target category classification bucket type string.
-# @param       $2  [Required] Topology routine selection ("local" or "distributed").
-# @param       $3  [Optional] Contextual tracking suffix string used for asset paths, target sub-directories, or unique node tags.
-#
-# @env         HOME                    Sourced application root tracking pathway string.
-# @env         S3_ACCESS_KEY           Access token configurations used for fanout loops.
-# @env         WEBSITE_URL             Primary base domain identifier mapping out schemas.
-# @env         DNS_CHOICE              Configuration flag used to tag platform routing options.
-# @env         SERVER_USER             Base tracking string used to generate local tokens.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - ExtractConfigValue.sh system service wrapper infrastructure for lookup evaluations.
-#              - ExtractBuildStyleValues.sh configuration parser for active software parameters.
-#              - PerformDatastoreMount.sh storage initialization driver executed by software parameters.
-#
-# @security    
-#              - Requires isolation of S3_ACCESS_KEY environment arrays containing active tokens.
-#              - Filters system platform usernames via narrow truncation to minimize information exposure.
-#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent hijack exploits.
-#
-# @exit        0  Success: Datastore evaluation and target mounting completed successfully.
-# @exit        1  Failure: Missing mandatory arguments or mismatched input states.
+#: Name:        MountDatastore.sh
+#: Purpose:     Context-aware S3 datastore provisioning and mounting utility across local or distributed endpoints.
+#: Author:      Peter Winter
+#: Date:        25/11/2026
+#: Version:     1.0
+#:
+#: Usage:       MountDatastore.sh <bucket_type> <mode> [additional_specifier]
+#:              MountDatastore.sh [-h|--help]
+#:
+#: Parameters:
+#:   $1         [Required] Target bucket classification type (e.g., ssl, config, asset, backup-web, backup-db, ad-hoc)
+#:   $2         [Required] Execution topology mode ("local" or "distributed")
+#:   $3         [Optional] Contextual tracking suffix or explicit bucket name for "ad-hoc" mode
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/services/datastore/operations/ResolveBucketName.sh
+#:   - ${HOME}/utilities/config/ExtractBuildStyleValues.sh
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/datastore/operations/<DATASTORETOOL>/PerformDatastoreMount.sh
+#:   - External binaries: cat, echo, grep, cut, date, dirname, mkdir, awk, tr, wc
+#:
+#: Exit Codes:
+#:   0          Target datastore bucket mounted/provisioned cleanly across local or distributed endpoints
+#:   1          Missing /home/homedir.dat, missing arguments, invalid mode, or missing/failed driver scripts
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -49,16 +40,25 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
-######################################################################################
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Error: Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
@@ -91,39 +91,14 @@ bucket_type="${1}"
 mode="${2}"
 additional_specifier="${3}"
 
-WEBSITE_URL="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
-DNS_CHOICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'DNSCHOICE')"
-SERVER_USER="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SERVERUSER')"
-TOKEN="$(/bin/echo "${SERVER_USER}" | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]')"
-
-url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
-
-active_bucket=""
-
-case "${bucket_type}" in
-    #    "config-sync")
-    #            specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
-    #            active_bucket="${url_hyphenated}-config-sync-tunnel${specifier_sanitized}"
-     #           ;;
-        "config")
-                active_bucket="$(/bin/echo "${WEBSITE_URL}-config" | /bin/sed 's/\./-/g')-${TOKEN}"
-                ;;
-        "backup-db")
-                active_bucket="${url_hyphenated}-db-${additional_specifier}"
-                ;;
-        "snap")
-                active_bucket="${url_hyphenated}-${DNS_CHOICE}-snap"
-                ;;
-        "ad-hoc")
-                active_bucket="${additional_specifier}"
-                ;;
-esac
-
-if [ -z "${active_bucket}" ]
+resolver_script="${HOME}/services/datastore/operations/ResolveBucketName.sh"
+if [ ! -f "${resolver_script}" ] || [ ! -x "${resolver_script}" ]
 then
-        log_error "Invalid bucket type specified or failed to build naming topology."
+        status "Error: Bucket resolver script missing or not executable at ${resolver_script}"
         exit 1
 fi
+
+active_bucket="$("${resolver_script}" "${bucket_type}" "${additional_specifier}")"
 
 DATASTORE_TOOL="$("${HOME}/utilities/config/ExtractBuildStyleValues.sh" "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}')"
 S3_ACCESS_KEY="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'S3ACCESSKEY')"

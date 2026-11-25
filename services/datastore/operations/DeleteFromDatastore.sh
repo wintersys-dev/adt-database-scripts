@@ -23,11 +23,11 @@
 #:   - ${HOME}/utilities/config/ExtractBuildStyleValues.sh
 #:   - ${HOME}/utilities/config/ExtractConfigValue.sh
 #:   - ${HOME}/services/datastore/operations/<DATASTORETOOL>/PerformDeleteFromDatastore.sh
-#:   - External binaries: cat, echo, grep, cut, date, dirname, mkdir, awk, wc, expr
+#:   - External binaries: cat, echo, grep, cut, date, dirname, mkdir, awk, tr, wc
 #:
 #: Exit Codes:
 #:   0          Target datastore object deleted cleanly across local or distributed endpoints
-#:   1          Missing /home/homedir.dat, missing arguments, invalid mode, or missing driver scripts
+#:   1          Missing /home/homedir.dat, missing arguments, invalid mode, or missing/failed driver scripts
 ###################################################################################
 # License Agreement:
 # This file is part of The Wintersys Agile Deployment Toolkit.
@@ -40,18 +40,26 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Wintersys Agile Deployment Toolkit.  If not, see <http://gnu.org>.
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
 ####################################################################################
 
 # Exit immediately if any command exits with a non-zero status
 #set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat"
+        /bin/echo "Error: Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 

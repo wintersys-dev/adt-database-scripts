@@ -1,48 +1,38 @@
 #!/bin/sh
-###################################################################################
-# @file        PutToDatastore.sh
-# @brief       Context-Aware S3 Datastore Object & Asset Upload Utility.
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     This script automates uploading individual files or asset directories 
-#              to managed cloud datastores. It dynamically constructs naming 
-#              topologies for target S3 buckets based on specific system profiles. It passes the 
-#              payload to an underlying script execution engine with an optional 
-#              post-upload deletion flag, executing either against a standalone primary 
-#              endpoint ("local") or propagating sequentially across multi-node 
-#              distributed regional clusters ("distributed").
-#
-# @param       $1  [Required] The target category classification bucket type string.
-# @param       $2  [Required] Absolute or relative local pathway of the file to upload.
-# @param       $3  [Required] Target destination folder path within the bucket. Passing "root" resets this to an empty base value.
-# @param       $4  [Required] Topology routine selection ("local" or "distributed").
-# @param       $5  [Required] Operational switch flag indicating whether to purge the local source file after a success.
-# @param       $6  [Optional] Contextual tracking suffix string used for asset paths, target sub-directories, or unique node tags.
-#
-# @env         HOME                    Sourced application root tracking pathway string.
-# @env         S3_ACCESS_KEY           Access token configurations used for fanout loops.
-# @env         WEBSITE_URL             Primary base domain identifier mapping out schemas.
-# @env         DNS_CHOICE              Configuration flag used to tag platform routing options.
-# @env         SERVER_USER             Base tracking string used to generate local tokens.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - ExtractConfigValue.sh system service wrapper infrastructure for lookup evaluations.
-#              - ExtractBuildStyleValues.sh configuration parser for active software parameters.
-#              - PerformPutToDatastore.sh data ingest driver selected by software parameters.
-#
-# @security    
-#              - Requires isolation of S3_ACCESS_KEY environment arrays containing active tokens.
-#              - Forces a static "no" delete state during distributed loops to prevent race conditions or premature file wiping.
-#              - Relies on system-owned executable paths (/bin, /usr/bin) to circumvent hijack exploits.
-#
-# @exit        0  Success: Local binary/payload securely delivered to targeted datastore nodes.
-# @exit        1  Failure: Missing arguments or downstream upload driver runtime faults.
+#: Name:        PutToDatastore.sh
+#: Purpose:     Context-aware S3 datastore object and asset upload utility across local or distributed endpoints.
+#: Author:      Peter Winter
+#: Date:        25/11/2026
+#: Version:     1.0
+#:
+#: Usage:       PutToDatastore.sh <bucket_type> <file_to_put> <place_to_put> <mode> <delete> [additional_specifier]
+#:              PutToDatastore.sh [-h|--help]
+#:
+#: Parameters:
+#:   $1         [Required] Target bucket classification type (e.g., ssl, config, asset, backup-web, backup-db, ad-hoc)
+#:   $2         [Required] Absolute or relative local path of the file to upload
+#:   $3         [Required] Target destination folder path within the bucket (pass "root" for bucket root)
+#:   $4         [Required] Execution topology mode ("local" or "distributed")
+#:   $5         [Required] Post-upload local source file deletion flag ("yes" or "no")
+#:   $6         [Optional] Contextual tracking suffix or explicit bucket name for "ad-hoc" mode
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/services/datastore/operations/ResolveBucketName.sh
+#:   - ${HOME}/utilities/config/ExtractBuildStyleValues.sh
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/services/datastore/operations/<DATASTORETOOL>/PerformPutToDatastore.sh
+#:   - External binaries: cat, echo, grep, cut, date, dirname, mkdir, awk, tr, wc, rm
+#:
+#: Exit Codes:
+#:   0          Local payload uploaded cleanly across local or distributed datastore endpoints
+#:   1          Missing /home/homedir.dat, missing arguments, invalid mode, or missing/failed driver scripts
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -53,16 +43,25 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
-######################################################################################
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
 set -e
 
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
 if [ -r /home/homedir.dat ]
 then
         HOME="$(/bin/cat /home/homedir.dat)"
 else
-        /bin/echo "Application root configuration file missing at /home/homedir.dat" >&2
+        /bin/echo "Error: Application root configuration file missing at /home/homedir.dat" >&2
         exit 1
 fi
 
@@ -98,39 +97,14 @@ mode="${4}"
 delete="${5}"
 additional_specifier="${6}"
 
-WEBSITE_URL="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'WEBSITEURL')"
-DNS_CHOICE="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'DNSCHOICE')"
-SERVER_USER="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'SERVERUSER')"
-TOKEN="$(/bin/echo "${SERVER_USER}" | /usr/bin/fold -w 4 | /usr/bin/head -n 1 | /usr/bin/tr '[:upper:]' '[:lower:]')"
-
-url_hyphenated="$(/bin/echo "${WEBSITE_URL}" | /bin/sed 's/\./-/g')"
-
-active_bucket=""
-
-case "${bucket_type}" in
-     #   "config-sync")
-     #           specifier_sanitized="$(/bin/echo "${additional_specifier}" | /bin/sed 's:/:-:g')"
-     #           active_bucket="${url_hyphenated}-config-sync-tunnel${specifier_sanitized}"
-     #           ;;
-        "config")
-                active_bucket="$(/bin/echo "${WEBSITE_URL}-config" | /bin/sed 's/\./-/g')-${TOKEN}"
-                ;;
-        "backup-db")
-                active_bucket="${url_hyphenated}-db-${additional_specifier}"
-                ;;
-        "snap")
-                active_bucket="${url_hyphenated}-${DNS_CHOICE}-snap"
-                ;;
-        "ad-hoc")
-                active_bucket="${additional_specifier}"
-                ;;
-esac
-
-if [ -z "${active_bucket}" ]
+resolver_script="${HOME}/services/datastore/operations/ResolveBucketName.sh"
+if [ ! -f "${resolver_script}" ] || [ ! -x "${resolver_script}" ]
 then
-        log_error "Invalid bucket type specified or failed to build naming topology."
+        status "Error: Bucket resolver script missing or not executable at ${resolver_script}"
         exit 1
 fi
+
+active_bucket="$("${resolver_script}" "${bucket_type}" "${additional_specifier}")"
 
 DATASTORE_TOOL="$("${HOME}/utilities/config/ExtractBuildStyleValues.sh" "DATASTORETOOL" | /usr/bin/awk -F':' '{print $2}')"
 S3_ACCESS_KEY="$("${HOME}/utilities/config/ExtractConfigValue.sh" 'S3ACCESSKEY')"

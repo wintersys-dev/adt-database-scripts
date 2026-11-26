@@ -1,39 +1,32 @@
 #!/bin/sh
-###################################################################################
-# @file        KnickersUp.sh
-# @brief       Context-Aware iptables Default Ingress Deny State Enforcement (KnickersUp).
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     This script enforces a highly restrictive security posture on the host by
-#              configuring the netfilter iptables/ip6tables subsystems to drop incoming
-#              and transit connections by default. It whitelists essential loopback interfaces
-#              and active connection tracks, blocks inbound ICMP echo requests to mitigate
-#              network discovery, persists the policy to storage via netfilter-persistent,
-#              and handles execution tracking markers.
-#
-# @param       None
-#
-# @env         HOME              Sourced application root tracking pathway string.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - ExtractConfigValue.sh configurations extractor infrastructure for lookup evaluations.
-#              - /usr/sbin/iptables system netfilter kernel rule table configuration application binary.
-#              - /usr/sbin/ip6tables system IPv6 netfilter kernel rule table configuration application binary.
-#              - /usr/sbin/netfilter-persistent framework utility persisting kernel firewall rule maps.
-#
-# @security    
-#              - Locks down the edge network topology by setting universal default-deny filter postures.
-#              - Drops inbound ICMP queries to obscure infrastructure endpoints from adversarial sweeps.
-#              - Relies on system-owned executable paths (/bin, /usr/sbin) to circumvent hijack exploits.
-#
-# @exit        0  Success: Security posture verified or netfilter tables securely updated.
-# @exit        1  Failure: General system exception or rule saving failure.
+#: Name:        KnickersUp.sh
+#: Purpose:     Enforces default-deny IPv4/IPv6 firewall posture, loopback rules, and ICMP echo drop (KnickersUp).
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     1.0
+#:
+#: Usage:       KnickersUp.sh
+#:              KnickersUp.sh [-h|--help]
+#:
+#: Parameters:
+#:   None       Applies baseline lockdown posture once and records ${HOME}/runtime/KNICKERS_ARE_UP.
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - /usr/sbin/iptables
+#:   - /usr/sbin/ip6tables
+#:   - External binaries: cat, echo, grep, cut, mkdir, touch
+#:
+#: Exit Codes:
+#:   0          Lockdown posture already active; no changes made
+#:   1          Missing /home/homedir.dat, missing netfilter binaries, or rule enforcement failure
+#:   10         Active iptables/ip6tables chains updated with lockdown posture (signals ReloadFirewall.sh)
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -44,31 +37,93 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
-######################################################################################
-#set -x
+####################################################################################
 
+# Exit immediately if any command exits with a non-zero status
+#set -x
 set -e
 
-HOME="$(/bin/cat /home/homedir.dat)"
-
-SERVER_USER_PASSWORD="$(${HOME}/utilities/config/ExtractConfigValue.sh 'SERVERUSERPASSWORD')"
-updated="0"
-
-if [ ! -f ${HOME}/runtime/KNICKERS_ARE_UP ]
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
-        /usr/sbin/iptables -I INPUT -m state --state ESTABLISHED -j ACCEPT
-        /usr/sbin/iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
-        /usr/sbin/iptables -A INPUT -i lo -j ACCEPT
-        /usr/sbin/iptables -A OUTPUT -o lo -j ACCEPT
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
+else
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
+then
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
+fi
+
+if [ ! -x /usr/sbin/iptables ] || [ ! -x /usr/sbin/ip6tables ]
+then
+        /bin/echo "Error: /usr/sbin/iptables or /usr/sbin/ip6tables not found or not executable." >&2
+        exit 1
+fi
+
+ensure_v4_insert()
+{
+        if ! /usr/sbin/iptables -C "$@" >/dev/null 2>&1
+        then
+                /usr/sbin/iptables -I "$@"
+        fi
+}
+
+ensure_v4_append()
+{
+        if ! /usr/sbin/iptables -C "$@" >/dev/null 2>&1
+        then
+                /usr/sbin/iptables -A "$@"
+        fi
+}
+
+ensure_v6_append()
+{
+        if ! /usr/sbin/ip6tables -C "$@" >/dev/null 2>&1
+        then
+                /usr/sbin/ip6tables -A "$@"
+        fi
+}
+
+updated="0"
+runtime_dir="${HOME}/runtime"
+lockdown_flag="${runtime_dir}/KNICKERS_ARE_UP"
+
+if [ ! -f "${lockdown_flag}" ]
+then
+        ensure_v4_insert INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+        ensure_v4_append INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+        ensure_v4_append INPUT -i lo -j ACCEPT
+        ensure_v4_append OUTPUT -o lo -j ACCEPT
+
         /usr/sbin/iptables -P INPUT DROP
         /usr/sbin/iptables -P FORWARD DROP
         /usr/sbin/iptables -P OUTPUT ACCEPT
+
+        ensure_v6_append INPUT -i lo -j ACCEPT
+        ensure_v6_append OUTPUT -o lo -j ACCEPT
+
         /usr/sbin/ip6tables -P INPUT DROP
         /usr/sbin/ip6tables -P FORWARD DROP
         /usr/sbin/ip6tables -P OUTPUT DROP
-     #   /usr/sbin/netfilter-persistent save
-        /bin/touch ${HOME}/runtime/KNICKERS_ARE_UP
+
+        if [ ! -d "${runtime_dir}" ]
+        then
+                /bin/mkdir -p "${runtime_dir}"
+        fi
+
+        /usr/bin/touch "${lockdown_flag}"
         updated="1"
 fi
 
@@ -78,3 +133,4 @@ then
 else
         exit 0
 fi
+

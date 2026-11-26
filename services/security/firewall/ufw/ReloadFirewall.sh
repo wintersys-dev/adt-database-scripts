@@ -1,35 +1,30 @@
 #!/bin/sh
-###################################################################################
-# @file        ReloadFirewall.sh
-# @brief       Context-Aware UFW Firewall Commit, Activation & State State Verification.
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     This script finalizes changes to the Uncomplicated Firewall (UFW) layer.
-#              It accepts parameter flags indicating whether rules were updated or freshly 
-#              initialised. If either condition is true, it forcefully commits the runtime
-#              tables, reloads policies, and audits active running states to touch the global
-#              infrastructure firewall assertion tracking file.
-#
-# @param       $1  updated      Flag (0 or 1) indicating if custom access rules changed.
-# @param       $2  initialised  Flag (0 or 1) indicating if a factory clear just completed.
-#
-# @env         HOME       Sourced application root tracking pathway string.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - /usr/sbin/ufw system Uncomplicated Firewall management application binary.
-#
-# @security    
-#              - Enforces active runtime evaluation to verify that drops are processing live traffic.
-#              - Relies on system-owned executable paths (/bin, /usr/sbin) to circumvent hijack exploits.
-#
-# @exit        0  Success: UFW state successfully verified, reloaded, or safely skipped.
-# @exit        1  Failure: Missing positional arguments or failed rule commit event.
+#: Name:        ReloadFirewall.sh
+#: Purpose:     Enables and reloads UFW rules when updated and asserts the FIREWALL-ACTIVE marker file.
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     1.0
+#:
+#: Usage:       ReloadFirewall.sh <updated: 0|1>
+#:              ReloadFirewall.sh [-h|--help]
+#:
+#: Parameters:
+#:   $1         [Required] Update flag ("1" to enable and reload UFW, "0" to verify state only)
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - /usr/sbin/ufw
+#:   - External binaries: cat, echo, printf, grep, cut, mkdir, touch
+#:
+#: Exit Codes:
+#:   0          UFW state enabled/reloaded cleanly and active status verified
+#:   1          Missing /home/homedir.dat, invalid/missing arguments, or UFW execution failure
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -40,29 +35,68 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
-######################################################################################
-#set -x
+####################################################################################
 
+# Exit immediately if any command exits with a non-zero status
+#set -x
 set -e
 
-if [ -z "${1}" ]
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
-        /bin/echo "Usage: ${0} <updated: 0|1>"
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
+else
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
+then
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
+fi
+
+if [ -z "${1}" ] || { [ "${1}" != "0" ] && [ "${1}" != "1" ]; }
+then
+        /bin/echo "Usage: ${0} <updated: 0|1>" >&2
         exit 1
 fi
 
 updated="${1}"
 
-HOME="$(/bin/cat /home/homedir.dat)"
-
-if [ "${updated}" = "1" ] 
+if [ ! -x /usr/sbin/ufw ]
 then
-        /usr/sbin/ufw -f enable
-        /usr/sbin/ufw reload
+        /bin/echo "Error: /usr/sbin/ufw not found or not executable." >&2
+        exit 1
 fi
 
-if [ "$(/usr/sbin/ufw status | /bin/grep 'inactive')" = "" ]
+if [ "${updated}" = "1" ]
 then
-        /bin/touch "${HOME}/runtime/FIREWALL-ACTIVE"
+        /usr/sbin/ufw -f enable >/dev/null
+        /usr/sbin/ufw reload >/dev/null
 fi
+
+set +e
+ufw_status="$(/usr/sbin/ufw status 2>/dev/null)"
+set -e
+
+if printf '%s\n' "${ufw_status}" | /bin/grep -q '^Status: active'
+then
+        runtime_dir="${HOME}/runtime"
+        if [ ! -d "${runtime_dir}" ]
+        then
+                /bin/mkdir -p "${runtime_dir}"
+        fi
+        /usr/bin/touch "${runtime_dir}/FIREWALL-ACTIVE"
+fi
+
+exit 0
+

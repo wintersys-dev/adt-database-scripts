@@ -213,7 +213,6 @@ for fw_step in \
         KnickersUp.sh \
         DenyAuthenticator.sh \
         AllowCustomPorts.sh \
-        AllowWireguard.sh \
         AllowBuildMachine.sh \
         AllowVPC.sh
 do

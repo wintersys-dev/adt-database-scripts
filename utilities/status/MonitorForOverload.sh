@@ -65,9 +65,9 @@ cpu_usage="`/usr/bin/sar -u 1 30 | /bin/grep "Average" | /usr/bin/awk '{print $N
 
 if ( [ "${cpu_usage}" -lt "25" ] )
 then
-        ${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${ip}" "overloadedips" "no"
+        ${HOME}/services/datastore/config/wrapper/PutToDatastore.sh "config" "${ip}" "overloadedips" "local" "no"
 else
-        ${HOME}/services/datastore/config/wrapper/DeleteFromDatastore.sh "config"  "overloadedips/${ip}"
+        ${HOME}/services/datastore/config/wrapper/DeleteFromDatastore.sh "config"  "overloadedips/${ip}" "local"
 fi
 
 if ( [ "${cpu_usage}" -lt "5" ] )

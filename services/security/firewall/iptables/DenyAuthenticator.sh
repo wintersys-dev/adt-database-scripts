@@ -1,38 +1,32 @@
 #!/bin/sh
-###################################################################################
-# @file        DenyAuthenticator.sh
-# @brief       Context-Aware iptables Isolation Policy Blocking Authenticator Infrastructure.
-# @author      Peter Winter
-# @date        09/04/2021
-# @version     1.0
-#
-# @details     Because authenticator machines are more public facing than the other 
-#              machines in our architecture, we want to block ssh requests to our 
-#              infrastructure that originate from authenticator machines as they are 
-#              slightly more vulnerable than our core infrastructure machines. This 
-#              script queries cloud datastores to fetch internal and public tracking 
-#              addresses and systematically inserts top-priority netfilter packet drop 
-#              rules via the iptables subsystem across non-auth hosts.
-#
-# @param       None
-#
-# @env         HOME              Sourced application root tracking pathway string.
-#
-# @dependencies
-#              - /home/homedir.dat configuration file tracking the active application root path.
-#              - ListFromDatastore.sh data object wrapper pulling live environment configurations.
-#              - /usr/sbin/iptables system netfilter kernel rule table configuration application binary.
-#
-# @security    
-#              - Implements lateral isolation by drop-blocking requests originating from public edges.
-#              - Inserts drops at the absolute top of the chain (-I INPUT) to bypass trailing ALLOW states.
-#              - Relies on system-owned executable paths (/bin, /usr/bin, /usr/sbin) to circumvent hijack exploits.
-#
-# @exit        0  Success: Isolation drop rules assessed and successfully written to netfilter.
-# @exit        1  Failure: General system exception or failed file validation event.
+#: Name:        DenyAuthenticator.sh
+#: Purpose:     Inserts idempotent top-priority iptables DROP rules isolating non-auth hosts from authenticator IPs.
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     2.0
+#:
+#: Usage:       DenyAuthenticator.sh
+#:              DenyAuthenticator.sh [-h|--help]
+#:
+#: Parameters:
+#:   None       Fetches authenticatorip/* and authenticatorpublicip/* from the config datastore on non-auth hosts.
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh
+#:   - /usr/sbin/iptables
+#:   - External binaries: cat, echo, printf, grep, cut, hostname
+#:
+#: Exit Codes:
+#:   0          Netfilter isolation rules verified or host is an authenticator; no changes made
+#:   1          Missing /home/homedir.dat, missing required tools, or iptables execution failure
+#:   10         Active iptables INPUT chain updated with authenticator DROP rules (signals ReloadFirewall.sh)
 ###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -43,33 +37,84 @@
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
 # along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
-######################################################################################
-######################################################################################
-#set -x
+####################################################################################
 
+# Exit immediately if any command exits with a non-zero status
+#set -x
 set -e
 
-HOME="$(/bin/cat /home/homedir.dat)"
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
+else
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
+then
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
+fi
+
+host_name="$(/usr/bin/hostname)"
+case "${host_name}" in
+        *-auth-*)
+                exit 0
+                ;;
+esac
+
+if [ ! -x /usr/sbin/iptables ]
+then
+        /bin/echo "Error: /usr/sbin/iptables not found or not executable." >&2
+        exit 1
+fi
+
+list_wrapper="${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh"
+if [ ! -x "${list_wrapper}" ]
+then
+        /bin/echo "Error: ListFromDatastore.sh missing or not executable at ${list_wrapper}" >&2
+        exit 1
+fi
+
+set +e
+authenticator_ips="$("${list_wrapper}" "config" "authenticatorip/*" 2>/dev/null)"
+authenticator_public_ips="$("${list_wrapper}" "config" "authenticatorpublicip/*" 2>/dev/null)"
+set -e
 
 updated="0"
 
-if [ "$(/usr/bin/hostname | /bin/grep '\-auth\-')" = "" ]
-then
-        authenticator_ip="$(${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "authenticatorip/*" | /usr/bin/tr '\n' ' ')"
-        authenticator_public_ip="$(${HOME}/services/datastore/config/wrapper/ListFromDatastore.sh "config" "authenticatorpublicip/*" | /usr/bin/tr '\n' ' ')"
+insert_drop_rule()
+{
+        raw_ip="${1}"
+        [ -z "${raw_ip}" ] && return 0
 
-        if [ "${authenticator_ip}" != "" ]
+        if ! printf '%s\n' "${raw_ip}" | /usr/bin/grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$'
         then
-                /usr/sbin/iptables -I INPUT -s ${authenticator_ip} -j DROP
-                updated="1"
+                /bin/echo "Warning: Skipping invalid authenticator IP entry '${raw_ip}'." >&2
+                return 0
         fi
 
-        if [ "${authenticator_public_ip}" != "" ]
-        then	
-                /usr/sbin/iptables -I INPUT -s ${authenticator_public_ip} -j DROP
+        if ! /usr/sbin/iptables -C INPUT -s "${raw_ip}" -j DROP >/dev/null 2>&1
+        then
+                /usr/sbin/iptables -I INPUT -s "${raw_ip}" -j DROP
                 updated="1"
         fi
-fi
+}
+
+for ip in ${authenticator_ips} ${authenticator_public_ips}
+do
+        insert_drop_rule "${ip}"
+done
 
 if [ "${updated}" = "1" ]
 then
@@ -77,3 +122,4 @@ then
 else
         exit 0
 fi
+

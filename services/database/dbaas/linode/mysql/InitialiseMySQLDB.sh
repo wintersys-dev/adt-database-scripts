@@ -1,13 +1,35 @@
 #!/bin/sh
-############################################################################
-# Description: This script initialises the MySQL db instance ready for use.
-# Once this script has run, an empty database with a known name will have been
-# created along with our database username and password. 
-# Author: Peter Winter
-# Date: 15/01/2017
-############################################################################
+#: Name:        InitialiseMySQLDB.sh
+#: Purpose:     Provisions the application MySQL user and target database on a Managed DBaaS instance.
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     2.0
+#:
+#: Usage:       InitialiseMySQLDB.sh
+#:              InitialiseMySQLDB.sh [-h|--help]
+#:
+#: Parameters:
+#:   None       Reads DBIDENTIFIER/MYPUBLICIP, DBUSERNAME, DBPASSWORD, and DBNAME from configuration.
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/utilities/config/CheckConfigValue.sh
+#:   - ${HOME}/utilities/config/StoreConfigValue.sh
+#:   - ${HOME}/utilities/remote/ConnectToMySQLDB.sh
+#:   - ${HOME}/services/database/dbaas/linode/mysql/live/mysql-user.sql
+#:   - ${HOME}/services/database/dbaas/linode/mysql/live/mysql-db.sql
+#:   - External binaries: cat, echo, grep, cut, mkdir, cp, rm, sed
+#:
+#: Exit Codes:
+#:   0          DBaaS application user and database provisioned cleanly
+#:   1          Missing /home/homedir.dat, missing DB parameters, or SQL execution failure
+###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -17,61 +39,139 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
-#################################################################################
-#################################################################################
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
+set -e
 
-HOST=""
-
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
 else
-	HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
 fi
 
-IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
-CLOUDHOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'CLOUDHOST'`"
-BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
-
-DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
-DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
-
-if ( [ "`/bin/echo ${DB_U} | /bin/grep ':::'`" != "" ] )
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
 then
-	DB_U1="`/bin/echo ${DB_U} | /bin/sed 's/:::/ /g' | /usr/bin/awk '{print $1}'`"
-	DB_U2="`/bin/echo ${DB_U} | /bin/sed 's/:::/ /g' | /usr/bin/awk '{print $2}'`"
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
 fi
 
-if ( [ "`/bin/echo ${DB_P} | /bin/grep ':::'`" != "" ] )
+config_extractor="${HOME}/utilities/config/ExtractConfigValue.sh"
+config_checker="${HOME}/utilities/config/CheckConfigValue.sh"
+config_storer="${HOME}/utilities/config/StoreConfigValue.sh"
+db_connector="${HOME}/utilities/remote/ConnectToMySQLDB.sh"
+
+set +e
+if [ "$("${config_checker}" 'DATABASEINSTALLATIONTYPE:DBaaS')" = "1" ]
 then
-	DB_P1="`/bin/echo ${DB_P} | /bin/sed 's/:::/ /g' | /usr/bin/awk '{print $1}'`"
-	DB_P2="`/bin/echo ${DB_P} | /bin/sed 's/:::/ /g' | /usr/bin/awk '{print $2}'`"
+        HOST="$("${config_extractor}" 'DBIDENTIFIER')"
+else
+        HOST="$("${config_extractor}" 'MYPUBLICIP')"
 fi
 
-if ( [ ! -d ${HOME}/runtime/mysql-init ] )
+DB_U="$("${config_extractor}" 'DBUSERNAME')"
+DB_P="$("${config_extractor}" 'DBPASSWORD')"
+DB_N="$("${config_extractor}" 'DBNAME')"
+set -e
+
+if [ -z "${HOST}" ] || [ -z "${DB_U}" ] || [ -z "${DB_P}" ] || [ -z "${DB_N}" ]
 then
-	/bin/mkdir -p ${HOME}/runtime/mysql-init
+        /bin/echo "Error: Required database parameters (HOST, DBUSERNAME, DBPASSWORD, or DBNAME) are missing." >&2
+        exit 1
 fi
 
-/bin/cp ${HOME}/services/database/dbaas/linode/mysql/live/mysql-user.sql ${HOME}/runtime/mysql-init/initialiseDB-user.sql
-/bin/cp ${HOME}/services/database/dbaas/linode/mysql/live/mysql-db.sql ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_UXXXX/${DB_U2}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_NXXXX/${DB_N}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXHOSTXXXX/${HOST}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_UXXXX/${DB_U2}/g" ${HOME}/runtime/mysql-init/initialiseDB-user.sql
-/bin/sed -i "s/XXXXDB_PXXXX/${DB_P2}/g" ${HOME}/runtime/mysql-init/initialiseDB-user.sql
+# Split "<admin>:::<app>" credential pairs using pure POSIX parameter expansion
+case "${DB_U}" in
+        *::*)
+                DB_U1="${DB_U%:::*}"
+                DB_U2="${DB_U#*:::}"
+                ;;
+        *)
+                DB_U1="${DB_U}"
+                DB_U2="${DB_U}"
+                ;;
+esac
 
-${HOME}/utilities/config/StoreConfigValue.sh 'DBUSERNAME' "${DB_U1}"       
-${HOME}/utilities/config/StoreConfigValue.sh 'DBPASSWORD' "${DB_P1}"  
+case "${DB_P}" in
+        *::*)
+                DB_P1="${DB_P%:::*}"
+                DB_P2="${DB_P#*:::}"
+                ;;
+        *)
+                DB_P1="${DB_P}"
+                DB_P2="${DB_P}"
+                ;;
+esac
 
-${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "no" "no" < ${HOME}/runtime/mysql-init/initialiseDB-user.sql
-${HOME}/utilities/remote/ConnectToMySQLDB.sh "dbaas-init" "no" "no" < ${HOME}/runtime/mysql-init/initialiseDB.sql
+user_tmpl="${HOME}/services/database/dbaas/linode/mysql/live/mysql-user.sql"
+db_tmpl="${HOME}/services/database/dbaas/linode/mysql/live/mysql-db.sql"
 
-${HOME}/utilities/config/StoreConfigValue.sh 'DBUSERNAME' "${DB_U2}"       
-${HOME}/utilities/config/StoreConfigValue.sh 'DBPASSWORD' "${DB_P2}"       
+if [ ! -r "${user_tmpl}" ] || [ ! -r "${db_tmpl}" ]
+then
+        /bin/echo "Error: MySQL initialization SQL templates missing at ${user_tmpl} / ${db_tmpl}" >&2
+        exit 1
+fi
 
+init_dir="${HOME}/runtime/mysql-init"
+if [ ! -d "${init_dir}" ]
+then
+        /bin/mkdir -p "${init_dir}"
+fi
+
+user_sql="${init_dir}/initialiseDB-user.sql"
+db_sql="${init_dir}/initialiseDB.sql"
+
+# Always ensure final application credentials are persisted and temp SQL files are purged on exit
+cleanup_and_finalize()
+{
+        /bin/rm -f "${user_sql}" "${db_sql}"
+        "${config_storer}" 'DBUSERNAME' "${DB_U2}"
+        "${config_storer}" 'DBPASSWORD' "${DB_P2}"
+}
+trap cleanup_and_finalize EXIT INT TERM
+
+# Escape sed replacement special characters (&, \, and delimiter |)
+escape_sed_rep()
+{
+        printf '%s' "${1}" | /bin/sed -e 's/[\\&|]/\\&/g'
+}
+
+escaped_u2="$(escape_sed_rep "${DB_U2}")"
+escaped_p2="$(escape_sed_rep "${DB_P2}")"
+escaped_n="$(escape_sed_rep "${DB_N}")"
+escaped_host="$(escape_sed_rep "${HOST}")"
+
+(
+        umask 077
+        /bin/cp "${user_tmpl}" "${user_sql}"
+        /bin/cp "${db_tmpl}" "${db_sql}"
+)
+
+/bin/sed -i "s|XXXXDB_UXXXX|${escaped_u2}|g" "${db_sql}"
+/bin/sed -i "s|XXXXDB_NXXXX|${escaped_n}|g" "${db_sql}"
+/bin/sed -i "s|XXXXHOSTXXXX|${escaped_host}|g" "${db_sql}"
+/bin/sed -i "s|XXXXDB_UXXXX|${escaped_u2}|g" "${user_sql}"
+/bin/sed -i "s|XXXXDB_PXXXX|${escaped_p2}|g" "${user_sql}"
+
+# Temporarily store DBaaS admin credentials to provision user and database
+"${config_storer}" 'DBUSERNAME' "${DB_U1}"
+"${config_storer}" 'DBPASSWORD' "${DB_P1}"
+
+"${db_connector}" "dbaas-init" "no" "no" < "${user_sql}"
+"${db_connector}" "dbaas-init" "no" "no" < "${db_sql}"
+
+exit 0
 

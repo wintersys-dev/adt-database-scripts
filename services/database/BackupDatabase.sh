@@ -1,12 +1,34 @@
 #!/bin/sh
-##############################################################################################################################
-# Description: This script implements database specific backup procedures. If you want to support additional new types of
-# database, then, you can add to this file, for example, mongodb or something like that
-# Author: Peter Winter
-# Date: 28/05/2017
-##############################################################################################################################
+#: Name:        BackupDatabase.sh
+#: Purpose:     Executes engine-specific database dumps, sanitization, and archive packaging for MariaDB, MySQL, and Postgres.
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     2.0
+#:
+#: Usage:       BackupDatabase.sh [output_archive]
+#:              BackupDatabase.sh [-h|--help]
+#:
+#: Parameters:
+#:   $1         [Optional] Target .tar.gz archive path (if omitted, runs in baseline mode leaving raw SQL file)
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/utilities/config/CheckConfigValue.sh
+#:   - ${HOME}/utilities/processing/GetIP.sh
+#:   - ${HOME}/utilities/processing/StandardiseMySQLCollations.sh
+#:   - ${HOME}/services/email/SendEmail.sh
+#:   - External binaries: cat, echo, grep, cut, sed, awk, wc, tar, rm, chmod, sleep, date, mariadb-dump/mysqldump/pg_dump
+#:
+#: Exit Codes:
+#:   0          Database backup dumped, sanitized, and archived cleanly
+#:   1          Missing /home/homedir.dat, aborted baseline check, or dump/archive failure
+###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -16,145 +38,258 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
-#######################################################################################################
-#######################################################################################################
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
+set -e
+
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
+then
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
+else
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
+fi
+
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
+then
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
+fi
 
 websiteDB="${1}"
-
 baseline="0"
-if ( [ "${websiteDB}" = "" ] )
+if [ -z "${websiteDB}" ]
 then
         baseline="1"
 fi
 
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
+config_extractor="${HOME}/utilities/config/ExtractConfigValue.sh"
+config_checker="${HOME}/utilities/config/CheckConfigValue.sh"
+
+set +e
+if [ "$("${config_checker}" 'DATABASEINSTALLATIONTYPE:DBaaS')" = "1" ]
 then
-        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        HOST="$("${config_extractor}" 'DBIDENTIFIER')"
 else
-        HOST="`${HOME}/utilities/processing/GetIP.sh`"
+        HOST="$("${HOME}/utilities/processing/GetIP.sh")"
 fi
 
-DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
-WEBSITE_URL="`${HOME}/utilities/config/ExtractConfigValue.sh 'WEBSITEURL'`"
-WEBSITE_NAME="`/bin/echo ${WEBSITE_URL} | /usr/bin/awk -F'.' '{print $2}'`"
+DB_PORT="$("${config_extractor}" 'DBPORT')"
+DB_U="$("${config_extractor}" 'DBUSERNAME')"
+DB_P="$("${config_extractor}" 'DBPASSWORD')"
+DB_N="$("${config_extractor}" 'DBNAME')"
+IP_MASK="$("${config_extractor}" 'IPMASK')"
+set -e
 
-DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
-DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
-
-
-#The standard troop of SQL databases
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Maria`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:MySQL`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:MySQL`" = "1" ]  )
+if [ -z "${HOST}" ] || [ -z "${DB_U}" ] || [ -z "${DB_N}" ]
 then
-        credentials_file=${HOME}/.mysql-credentials.cnf
-        /bin/echo "[client]" > ${credentials_file}
-        /bin/echo "user=${DB_U}" >> ${credentials_file}
-        /bin/echo "password=${DB_P}" >> ${credentials_file}
-        /bin/echo "port=${DB_PORT}" >> ${credentials_file}
-        /bin/echo "host=${HOST}" >> ${credentials_file}
+        /bin/echo "Error: Missing required database connection parameters (HOST, DBUSERNAME, or DBNAME)." >&2
+        exit 1
+fi
 
-        if ( [ -f /usr/bin/mariadb-dump ] )
+# Escape special characters for sed search patterns and replacements
+escape_sed_pat()
+{
+        printf '%s' "${1}" | /bin/sed -e 's/[\\.*^$[\]|]/\\&/g'
+}
+
+escape_sed_rep()
+{
+        printf '%s' "${1}" | /bin/sed -e 's/[\\&|]/\\&/g'
+}
+
+# 1. MariaDB / MySQL Backup Workflow
+if [ "$("${config_checker}" 'DATABASEINSTALLATIONTYPE:Maria')" = "1" ] || \
+   [ "$("${config_checker}" 'DATABASEDBaaSINSTALLATIONTYPE:Maria')" = "1" ] || \
+   [ "$("${config_checker}" 'DATABASEINSTALLATIONTYPE:MySQL')" = "1" ] || \
+   [ "$("${config_checker}" 'DATABASEDBaaSINSTALLATIONTYPE:MySQL')" = "1" ]
+then
+        credentials_file="${HOME}/.mysql-credentials-$$.cnf"
+        trap '/bin/rm -f "${credentials_file}"' EXIT INT TERM
+
+        (
+                umask 077
+                {
+                        /bin/echo "[client]"
+                        /bin/echo "user=${DB_U}"
+                        /bin/echo "password=${DB_P}"
+                        [ -n "${DB_PORT}" ] && /bin/echo "port=${DB_PORT}"
+                        /bin/echo "host=${HOST}"
+                } > "${credentials_file}"
+        )
+
+        if [ -x /usr/bin/mariadb-dump ]
         then
-                mysql_dump="/usr/bin/mariadb-dump --defaults-extra-file=${credentials_file} --ssl=TRUE "
+                mysql_dump="/usr/bin/mariadb-dump --defaults-extra-file=${credentials_file} --ssl=TRUE"
+        elif [ -x /usr/bin/mysqldump ]
+        then
+                mysql_dump="/usr/bin/mysqldump --defaults-extra-file=${credentials_file} --set-gtid-purged=OFF --ssl=TRUE --skip-column-statistics"
         else
-                mysql_dump="/usr/bin/mysqldump --defaults-extra-file=${credentials_file} --set-gtid-purged=OFF --ssl=TRUE --skip-column-statistics "
+                /bin/echo "Error: Neither mariadb-dump nor mysqldump found on system." >&2
+                exit 1
         fi
 
-        if ( [ -f /usr/bin/mariadb ] )
+        if [ -x /usr/bin/mariadb ]
         then
-                mysql="/usr/bin/mariadb --defaults-extra-file=${credentials_file}"
+                mysql_cli="/usr/bin/mariadb --defaults-extra-file=${credentials_file}"
         else
-                mysql="/usr/bin/mysql --defaults-extra-file=${credentials_file}"
+                mysql_cli="/usr/bin/mysql --defaults-extra-file=${credentials_file}"
         fi
 
-
-        if ( [ "${baseline}" = "1" ] && [ "`${mysql} -A ${DB_N} -e 'show tables' | /usr/bin/wc -l`" -lt "10" ] )
+        if [ "${baseline}" = "1" ]
         then
-                /bin/echo "${0} `/bin/date`: There is less then 10 tables in the database. If this is expected enter 'Y' or 'y' anything else to abort" 
-                read response
-                if ( [ "${response}" != "y" ] && [ "${response}" != "Y" ] )
+                set +e
+                table_count="$(${mysql_cli} -N -B -A "${DB_N}" -e 'SHOW TABLES;' 2>/dev/null | /usr/bin/wc -l)"
+                set -e
+                if [ "${table_count:-0}" -lt 10 ]
                 then
-                        exit
+                        /bin/echo "${0} $(/bin/date): There are fewer than 10 tables in the database. If this is expected enter 'Y' or 'y' (anything else to abort):"
+                        read -r response
+                        if [ "${response}" != "y" ] && [ "${response}" != "Y" ]
+                        then
+                                exit 1
+                        fi
                 fi
         fi
 
-        /bin/echo "SET SESSION sql_require_primary_key = 0;" > applicationDB.sql
-        /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
-
-        tries="1"
-        ${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y  ${DB_N} >> applicationDB.sql 
-        /bin/sed -i -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' ./applicationDB.sql
-
-        while ( [ "`/usr/bin/wc -l ./applicationDB.sql | /usr/bin/awk '{print $1}'`" -lt "10" ] &&  [ "${tries}" -lt "5" ] )
+        tries=1
+        dump_ok="0"
+        while [ "${tries}" -le 5 ]
         do
-                /bin/sleep 10
-                tries="`/usr/bin/expr ${tries} + 1`"
-                ${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y  ${DB_N} >> applicationDB.sql 
-                /bin/sed -i -e '/SET @@SESSION.SQL_LOG_BIN= 0;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' -e '/SET @@GLOBAL.GTID_PURGED=/,/;/d' -e '/SET @@GLOBAL.GTID_PURGED=.*;/d' ./applicationDB.sql
+                {
+                        /bin/echo "SET SESSION sql_require_primary_key = 0;"
+                        /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;"
+                } > ./applicationDB.sql
+
+                set +e
+                ${mysql_dump} --skip-lock-tables --single-transaction --hex-blob --routines --triggers --force -y "${DB_N}" >> ./applicationDB.sql
+                dump_exit="$?"
+                set -e
+
+                /bin/sed -i \
+                        -e '/SET @@SESSION\.SQL_LOG_BIN= 0;/d' \
+                        -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=OFF;/d' \
+                        -e '/SET GLOBAL INNODB_STATS_AUTO_RECALC=@OLD_INNODB_STATS_AUTO_RECALC;/d' \
+                        -e '/SET @@GLOBAL\.GTID_PURGED=/,/;/d' \
+                        -e '/SET @@GLOBAL\.GTID_PURGED=.*;/d' \
+                        ./applicationDB.sql
+
+                line_count="$(/usr/bin/wc -l < ./applicationDB.sql | /usr/bin/awk '{print $1}')"
+                if [ "${dump_exit}" -eq 0 ] && [ "${line_count}" -ge 10 ]
+                then
+                        dump_ok="1"
+                        break
+                fi
+
+                if [ "${tries}" -lt 5 ]
+                then
+                        /bin/sleep 10
+                fi
+                tries=$((tries + 1))
         done
 
-        if ( [ "${tries}" = "5" ] )
+        /bin/rm -f "${credentials_file}"
+        trap - EXIT INT TERM
+
+        if [ "${dump_ok}" != "1" ]
         then
-                /bin/echo "${0} `/bin/date`: Had trouble makng a backup of your database. Please investigate..." 
-                ${HOME}/services/email/SendEmail.sh "FAILED TO TAKE BACKUP" "I haven't been able to take a database backup, please investigate" "ERROR"
-                exit
+                /bin/echo "${0} $(/bin/date): Had trouble making a backup of your database. Please investigate..." >&2
+                "${HOME}/services/email/SendEmail.sh" "FAILED TO TAKE BACKUP" "I haven't been able to take a database backup, please investigate" "ERROR" || true
+                exit 1
         fi
 
-        /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;" >> applicationDB.sql
-        /bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;" >> applicationDB.sql
+        {
+                /bin/echo "DROP TABLE IF EXISTS \`zzzz\`;"
+                /bin/echo "CREATE TABLE \`zzzz\` ( \`idxx\` int(10) unsigned NOT NULL, PRIMARY KEY (\`idxx\`) ) Engine=INNODB CHARSET=utf8mb4;"
+        } >> ./applicationDB.sql
 
-        if ( [ "${websiteDB}" != "" ] )
+        if [ -n "${websiteDB}" ]
         then
-                /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.sql
-                /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.sql
-                /bin/sed -i '/SESSION.SQL_LOG_BIN/d' applicationDB.sql
-                IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-                /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.sql
-                /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-                /bin/echo "${0} `/bin/date`: Taring the database dump" 
+                escaped_db_u="$(escape_sed_pat "${DB_U}")"
+                /bin/sed -i 's|http://|https://|g' ./applicationDB.sql
+                /bin/sed -i "s|${escaped_db_u}|XXXXXXXXXX|g" ./applicationDB.sql
+                /bin/sed -i '/SESSION\.SQL_LOG_BIN/d' ./applicationDB.sql
+                if [ -n "${IP_MASK}" ]
+                then
+                        escaped_ip_mask="$(escape_sed_pat "${IP_MASK}")"
+                        /bin/sed -i "s|${escaped_ip_mask}|YYYYYYYYYY|g" ./applicationDB.sql
+                fi
+                /bin/echo "${0} $(/bin/date): Replaced all http with https in the SQL file"
+                /bin/echo "${0} $(/bin/date): Tarring the database dump"
         fi
 
-        ${HOME}/utilities/processing/StandardiseMySQLCollations.sh ./applicationDB.sql
+        "${HOME}/utilities/processing/StandardiseMySQLCollations.sh" ./applicationDB.sql
 
-        if ( [ "${websiteDB}" != "" ] )
+        if [ -n "${websiteDB}" ]
         then
-                /bin/tar cvfz ${websiteDB} applicationDB.sql
-                /bin/rm applicationDB.sql
+                /bin/tar czf "${websiteDB}" applicationDB.sql
+                /bin/rm -f ./applicationDB.sql
         fi
 fi
 
-#The postgres SQL database
-
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:Postgres`" = "1" ] || [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEDBaaSINSTALLATIONTYPE:Postgres`" = "1" ] )
+# 2. PostgreSQL Backup Workflow
+if [ "$("${config_checker}" 'DATABASEINSTALLATIONTYPE:Postgres')" = "1" ] || [ "$("${config_checker}" 'DATABASEDBaaSINSTALLATIONTYPE:Postgres')" = "1" ]
 then
-
-        if ( [ -f /usr/bin/pg_dump ] )
+        if [ ! -x /usr/bin/pg_dump ]
         then
-                pg_dump="/usr/bin/pg_dump "
+                /bin/echo "Error: /usr/bin/pg_dump not found on system." >&2
+                exit 1
         fi
 
-        /bin/echo "DROP TABLE zzzz;" > applicationDB.psql
-        export PGPASSWORD="${DB_P}" && ${pg_dump} -U ${DB_U} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
+        /bin/echo "DROP TABLE IF EXISTS zzzz;" > ./applicationDB.psql
 
-        if ( [ "$?" != "0" ] )
+        set +e
+        PGPASSWORD="${DB_P}" /usr/bin/pg_dump -U "${DB_U}" -h "${HOST}" -p "${DB_PORT}" -d "${DB_N}" >> ./applicationDB.psql
+        pg_exit="$?"
+
+        if [ "${pg_exit}" -ne 0 ]
         then
-                /usr/bin/sudo -su postgres ${pg_dump} -h ${HOST} -p ${DB_PORT} -d ${DB_N} > applicationDB.psql
+                /bin/echo "DROP TABLE IF EXISTS zzzz;" > ./applicationDB.psql
+                /usr/bin/sudo -su postgres /usr/bin/pg_dump -h "${HOST}" -p "${DB_PORT}" -d "${DB_N}" >> ./applicationDB.psql
+                pg_exit="$?"
+        fi
+        set -e
+
+        if [ "${pg_exit}" -ne 0 ]
+        then
+                /bin/echo "${0} $(/bin/date): PostgreSQL backup failed (exit code ${pg_exit})." >&2
+                "${HOME}/services/email/SendEmail.sh" "FAILED TO TAKE BACKUP" "I haven't been able to take a PostgreSQL database backup, please investigate" "ERROR" || true
+                exit 1
         fi
 
-        /bin/echo "DROP TABLE IF EXISTS public.zzzz;" >> applicationDB.psql
-        /bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );" >> applicationDB.psql
+        {
+                /bin/echo "DROP TABLE IF EXISTS public.zzzz;"
+                /bin/echo "CREATE TABLE public.zzzz ( idxx serial PRIMARY KEY );"
+        } >> ./applicationDB.psql
 
-        if ( [ "${websiteDB}" != "" ] )
+        if [ -n "${websiteDB}" ]
         then
-                /bin/sed -i -- 's/http:\/\//https:\/\//g' applicationDB.psql
-                /bin/sed -i "s/${DB_U}/XXXXXXXXXX/g" applicationDB.psql
-                IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-                /bin/sed -i "s/${IP_MASK}/YYYYYYYYYY/g" applicationDB.psql
-                /bin/echo "${0} `/bin/date`: replaced all http with https in the SQL file" 
-                /bin/echo "${0} `/bin/date`: Taring the database dump"
-                /bin/tar cvfz ${websiteDB} applicationDB.psql
-                /bin/rm applicationDB.psql
+                escaped_db_u="$(escape_sed_pat "${DB_U}")"
+                /bin/sed -i 's|http://|https://|g' ./applicationDB.psql
+                /bin/sed -i "s|${escaped_db_u}|XXXXXXXXXX|g" ./applicationDB.psql
+                if [ -n "${IP_MASK}" ]
+                then
+                        escaped_ip_mask="$(escape_sed_pat "${IP_MASK}")"
+                        /bin/sed -i "s|${escaped_ip_mask}|YYYYYYYYYY|g" ./applicationDB.psql
+                fi
+                /bin/echo "${0} $(/bin/date): Replaced all http with https in the SQL file"
+                /bin/echo "${0} $(/bin/date): Tarring the database dump"
+                /bin/tar czf "${websiteDB}" applicationDB.psql
+                /bin/rm -f ./applicationDB.psql
         fi
 fi
+
+exit 0
+

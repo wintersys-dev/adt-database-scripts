@@ -1,15 +1,34 @@
 #!/bin/sh
-############################################################################
-# Description: This script initialises the MySQL db instance ready for use.
-# It can be either a local database or a remote managed database. 
-# Once this script has run, an empty database with a known name will have been
-# created along with our database username and password. The root user will have
-# been disabled 
-# Author: Peter Winter
-# Date: 15/01/2017
-############################################################################
+#: Name:        InitialiseMySQLDB.sh
+#: Purpose:     Initialises a self-managed MySQL instance, creates application user/database, and applies server config.
+#: Author:      Peter Winter
+#: Date:        26/11/2026
+#: Version:     2.0
+#:
+#: Usage:       InitialiseMySQLDB.sh
+#:              InitialiseMySQLDB.sh [-h|--help]
+#:
+#: Parameters:
+#:   None       Reads DBUSERNAME, DBPASSWORD, DBNAME, IPMASK, DBPORT, and SERVERUSERPASSWORD from configuration.
+#:
+#: Environment:
+#:   HOME       Resolved automatically from /home/homedir.dat and exported
+#:
+#: Dependencies:
+#:   - /home/homedir.dat
+#:   - ${HOME}/utilities/config/ExtractConfigValue.sh
+#:   - ${HOME}/utilities/processing/RunServiceCommand.sh
+#:   - ${HOME}/services/database/selfmanaged/mysql/live/mysql.sql
+#:   - ${HOME}/services/database/selfmanaged/mysql/live/mysql.config
+#:   - /usr/bin/mysql
+#:   - External binaries: cat, echo, grep, cut, mkdir, cp, rm, sed, tr, id, sudo
+#:
+#: Exit Codes:
+#:   0          Self-managed MySQL instance initialised and restarted cleanly
+#:   1          Missing /home/homedir.dat, missing DB parameters/templates, or SQL/service failure
+###################################################################################
 # License Agreement:
-# This file is part of The Agile Deployment Toolkit.
+# This file is part of The Wintersys Agile Deployment Toolkit.
 # The Agile Deployment Toolkit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -19,74 +38,171 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License
-# along with The Agile Deployment Toolkit.  If not, see <http://www.gnu.org/licenses/>.
-#################################################################################
-#################################################################################
+# along with The Agile Deployment Toolkit.  If not, see <http://gnu.org>.
+####################################################################################
+
+# Exit immediately if any command exits with a non-zero status
 #set -x
+set -e
 
-HOST=""
-
-if ( [ "`${HOME}/utilities/config/CheckConfigValue.sh DATABASEINSTALLATIONTYPE:DBaaS`" = "1" ] )
+# Render self-extracting help documentation when -h or --help is supplied
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]
 then
-        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBIDENTIFIER'`"
+        /usr/bin/grep '^#:' "$0" | /usr/bin/cut -c 4-
+        exit 0
+fi
+
+# Resolve the server toolkit root directory from /home/homedir.dat
+if [ -r /home/homedir.dat ]
+then
+        HOME="$(/bin/cat /home/homedir.dat)"
+        export HOME
 else
-        HOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'MYPUBLICIP'`"
+        /bin/echo "Application framework configuration file missing at /home/homedir.dat" >&2
+        exit 1
 fi
 
-IP_MASK="`${HOME}/utilities/config/ExtractConfigValue.sh 'IPMASK'`"
-DB_PORT="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPORT'`"
-CLOUDHOST="`${HOME}/utilities/config/ExtractConfigValue.sh 'CLOUDHOST'`"
-BUILDOS="`${HOME}/utilities/config/ExtractConfigValue.sh 'BUILDOS'`"
-
-if ( [ -f /tmp/original_credentials.dat ] )
+if [ -z "${HOME}" ] || [ ! -d "${HOME}" ]
 then
-        DB_U="`/bin/grep DATABASE_USERNAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-        DB_P="`/bin/grep DATABASE_PASSWORD /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-        DB_N="`/bin/grep DATABASE_NAME /tmp/original_credentials.dat | /usr/bin/awk -F':' '{print $NF}'`"
-        /bin/rm /tmp/original_credentials.dat
+        /bin/echo "Error: Resolved HOME directory '${HOME}' is invalid." >&2
+        exit 1
+fi
+
+config_extractor="${HOME}/utilities/config/ExtractConfigValue.sh"
+service_runner="${HOME}/utilities/processing/RunServiceCommand.sh"
+
+set +e
+IP_MASK="$("${config_extractor}" 'IPMASK')"
+DB_PORT="$("${config_extractor}" 'DBPORT')"
+SERVER_USER_PASSWORD="$("${config_extractor}" 'SERVERUSERPASSWORD')"
+
+if [ -f /tmp/original_credentials.dat ]
+then
+        DB_U="$(/bin/grep '^DATABASE_USERNAME:' /tmp/original_credentials.dat | /usr/bin/cut -d':' -f2-)"
+        DB_P="$(/bin/grep '^DATABASE_PASSWORD:' /tmp/original_credentials.dat | /usr/bin/cut -d':' -f2-)"
+        DB_N="$(/bin/grep '^DATABASE_NAME:' /tmp/original_credentials.dat | /usr/bin/cut -d':' -f2-)"
+        /bin/rm -f /tmp/original_credentials.dat
 else
-        DB_U="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBUSERNAME'`"
-        DB_P="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBPASSWORD'`"
-        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME'`"
+        DB_U="$("${config_extractor}" 'DBUSERNAME')"
+        DB_P="$("${config_extractor}" 'DBPASSWORD')"
+        DB_N="$("${config_extractor}" 'DBNAME')"
 fi
+set -e
 
-if ( [ -f ${HOME}/runtime/restoration_archives/ARCHIVE_ID ] )
+# Strip any leading "<prefix>:::" qualifier if present
+case "${DB_U}" in
+        *::*)
+                DB_U="${DB_U#*:::}"
+                ;;
+esac
+
+case "${DB_P}" in
+        *::*)
+                DB_P="${DB_P#*:::}"
+                ;;
+esac
+
+if [ -z "${DB_U}" ] || [ -z "${DB_P}" ] || [ -z "${DB_N}" ]
 then
-        DB_N="`${HOME}/utilities/config/ExtractConfigValue.sh 'DBNAME' | /bin/sed 's/_archive.*//g'`"
-        DB_N="${DB_N}_`/bin/cat ${HOME}/runtime/restoration_archives/ARCHIVE_ID | /bin/sed -e 's/\./_/g' -e 's/-/_/g'`"
+        /bin/echo "Error: Required database parameters (DBUSERNAME, DBPASSWORD, or DBNAME) are missing." >&2
+        exit 1
 fi
 
-if ( [ ! -d ${HOME}/runtime/mysql-init ] )
+# Append archive ID suffix when initialising a restoration database
+if [ -f "${HOME}/runtime/restoration_archives/ARCHIVE_ID" ]
 then
-        /bin/mkdir -p ${HOME}/runtime/mysql-init
+        archive_id="$(/bin/cat "${HOME}/runtime/restoration_archives/ARCHIVE_ID" | /bin/sed -e 's/\./_/g' -e 's/-/_/g' | /usr/bin/tr -d '[:space:]')"
+        base_db_n="$(printf '%s\n' "${DB_N}" | /bin/sed 's/_archive.*//g')"
+        DB_N="${base_db_n}_${archive_id}"
 fi
 
-/bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.sql ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_NXXXX/${DB_N}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_UXXXX/${DB_U}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXDB_PXXXX/${DB_P}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
-/bin/sed -i "s/XXXXIP_MASKXXXX/${IP_MASK}/g" ${HOME}/runtime/mysql-init/initialiseDB.sql
+sql_tmpl="${HOME}/services/database/selfmanaged/mysql/live/mysql.sql"
+cfg_tmpl="${HOME}/services/database/selfmanaged/mysql/live/mysql.config"
 
-${HOME}/utilities/processing/RunServiceCommand.sh mysql start
-
-credentials_file=${HOME}/.mysql-credentials.cnf
-/bin/echo "[client]" > ${credentials_file}
-/bin/echo "password=${DB_P}" >> ${credentials_file}
-
-#try with no password set
-#/usr/bin/mysql -A < ${HOME}/runtime/mysql-init/initialiseDB.sql
-#make sure by trying with password
-#if ( [ "$?" != "0" ] )
-#then
-        /usr/bin/mysql  --defaults-extra-file=${credentials_file} -A --force -u root < ${HOME}/runtime/mysql-init/initialiseDB.sql
-#fi
-
-if ( [ "$?" != "0" ] )
+if [ ! -r "${sql_tmpl}" ] || [ ! -r "${cfg_tmpl}" ]
 then
-        /usr/bin/mysql  --defaults-extra-file=${credentials_file} -A --force -u ${DB_U} < ${HOME}/runtime/mysql-init/initialiseDB.sql
+        /bin/echo "Error: MySQL initialization template files missing under ${HOME}/services/database/selfmanaged/mysql/live/" >&2
+        exit 1
 fi
 
-/bin/cp ${HOME}/services/database/selfmanaged/mysql/live/mysql.config /etc/mysql/my.cnf
-/bin/sed -i "s/XXXXDB_PORTXXXX/${DB_PORT}/g" /etc/mysql/my.cnf
+init_dir="${HOME}/runtime/mysql-init"
+if [ ! -d "${init_dir}" ]
+then
+        /bin/mkdir -p "${init_dir}"
+fi
 
-${HOME}/utilities/processing/RunServiceCommand.sh mysql restart
+init_sql="${init_dir}/initialiseDB.sql"
+credentials_file="${HOME}/.mysql-credentials-$$.cnf"
+
+# Always purge temporary SQL and credential files containing plaintext passwords on exit
+cleanup_sensitive_files()
+{
+        /bin/rm -f "${init_sql}" "${credentials_file}"
+}
+trap cleanup_sensitive_files EXIT INT TERM
+
+# Escape sed replacement special characters (&, \, and delimiter |)
+escape_sed_rep()
+{
+        printf '%s' "${1}" | /bin/sed -e 's/[\\&|]/\\&/g'
+}
+
+escaped_db_n="$(escape_sed_rep "${DB_N}")"
+escaped_db_u="$(escape_sed_rep "${DB_U}")"
+escaped_db_p="$(escape_sed_rep "${DB_P}")"
+escaped_ip_mask="$(escape_sed_rep "${IP_MASK}")"
+escaped_db_port="$(escape_sed_rep "${DB_PORT:-3306}")"
+
+(
+        umask 077
+        /bin/cp "${sql_tmpl}" "${init_sql}"
+        {
+                /bin/echo "[client]"
+                /bin/echo "password=${DB_P}"
+        } > "${credentials_file}"
+)
+
+/bin/sed -i "s|XXXXDB_NXXXX|${escaped_db_n}|g" "${init_sql}"
+/bin/sed -i "s|XXXXDB_UXXXX|${escaped_db_u}|g" "${init_sql}"
+/bin/sed -i "s|XXXXDB_PXXXX|${escaped_db_p}|g" "${init_sql}"
+/bin/sed -i "s|XXXXIP_MASKXXXX|${escaped_ip_mask}|g" "${init_sql}"
+
+"${service_runner}" mysql start
+
+# Attempt local auth_socket root auth first, then passworded root, then application user
+set +e
+/usr/bin/mysql -A -u root < "${init_sql}" >/dev/null 2>&1
+init_exit="$?"
+
+if [ "${init_exit}" -ne 0 ]
+then
+        /usr/bin/mysql --defaults-extra-file="${credentials_file}" -A -u root < "${init_sql}" >/dev/null 2>&1
+        init_exit="$?"
+fi
+
+if [ "${init_exit}" -ne 0 ]
+then
+        /usr/bin/mysql --defaults-extra-file="${credentials_file}" -A -u "${DB_U}" < "${init_sql}"
+        init_exit="$?"
+fi
+set -e
+
+if [ "${init_exit}" -ne 0 ]
+then
+        /bin/echo "Error: Failed to execute MySQL initialization SQL script (exit code ${init_exit})." >&2
+        exit 1
+fi
+
+if [ "$(/usr/bin/id -u)" -eq 0 ]
+then
+        /bin/cp "${cfg_tmpl}" /etc/mysql/my.cnf
+        /bin/sed -i "s|XXXXDB_PORTXXXX|${escaped_db_port}|g" /etc/mysql/my.cnf
+else
+        printf '%s\n' "${SERVER_USER_PASSWORD}" | /usr/bin/sudo -S /bin/cp "${cfg_tmpl}" /etc/mysql/my.cnf
+        printf '%s\n' "${SERVER_USER_PASSWORD}" | /usr/bin/sudo -S /bin/sed -i "s|XXXXDB_PORTXXXX|${escaped_db_port}|g" /etc/mysql/my.cnf
+fi
+
+"${service_runner}" mysql restart
+
+exit 0
+

@@ -1,0 +1,62 @@
+Yes—if you are running a self-hosted database VPS in ADT, it really is that simple. You just install Valkey on that database VPS, bind it to your private VPC IP with a password, open port 6379 to your webservers, and update Joomla's configuration.php.
+Here is the exact 4-step checklist to wire it together:
+
+1. Install Valkey on the Database VPS
+
+On Ubuntu 24.04+ or Debian 13+ (or via the official Valkey repository on older LTS releases):
+bash
+apt update && apt install -y valkey
+Use code with caution.
+
+2. Configure /etc/valkey/valkey.conf
+
+Set it to listen on your database VPS's private VPC IP (e.g., 10.0.0.2), cap its memory so it never crowds your SQL database, and require authentication:
+ini
+bind 127.0.0.1 10.0.0.2
+protected-mode yes
+requirepass YOUR_STRONG_VALKEY_PASSWORD
+
+maxmemory 2gb
+maxmemory-policy volatile-lru
+save ""
+appendonly no
+Use code with caution.
+Restart Valkey to apply:
+bash
+systemctl enable --now valkey-server
+Use code with caution.
+
+3. Open Port 6379 on the Database VPS Firewall
+
+Allow TCP port 6379 only from your internal VPC subnet (10.0.0.0/24) or your autoscaling webserver IPs—never to 0.0.0.0/0:
+bash
+ufw allow from 10.0.0.0/24 to any port 6379 proto tcp
+Use code with caution.
+(If you use a Linode Cloud Firewall on the database VPS, add the same inbound rule for TCP 6379 restricted to your VPC CIDR).
+
+4. Wire Up Joomla on the Webservers
+
+Ensure the PHP Redis extension is installed on your webserver image (apt install -y php-redis), then add these settings to Joomla's configuration.php (inside your adt-webserver-scripts configuration template):
+php
+// Object & Page Cache via Valkey
+public $caching = 1;
+public $cache_handler = 'redis';
+public $redis_persist = true;
+public $redis_server_host = '10.0.0.2';
+public $redis_server_port = 6379;
+public $redis_server_auth = 'YOUR_STRONG_VALKEY_PASSWORD';
+public $redis_server_db = 0;
+
+// Shared User Sessions via Valkey (DB 1 keeps sessions isolated from cache)
+public $session_handler = 'redis';
+public $session_redis_persist = true;
+public $session_redis_server_host = '10.0.0.2';
+public $session_redis_server_port = 6379;
+public $session_redis_server_auth = 'YOUR_STRONG_VALKEY_PASSWORD';
+public $session_redis_server_db = 1;
+Use code with caution.
+(Separating db = 0 for cache and db = 1 for sessions ensures that clearing Joomla's cache in the admin panel won't accidentally log out your active users).
+If you'd like to automate this cleanly in your ADT repositories, let me know:
+• Which OS version (e.g., Ubuntu 24.04 or Debian 12/13) your ADT templates use
+• Whether you want the exact template variable placeholders to drop into adt-database-scripts and adt-webserver-scripts
+I can tailor the exact script lines for your fork.

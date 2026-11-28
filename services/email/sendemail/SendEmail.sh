@@ -23,8 +23,8 @@ set -e
 
 if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] )
 then
-        /bin/echo "Error: 3 arguments are required."
-        /bin/echo "Usage: $0 <subject> <message> <to_address>"
+        /bin/echo "Error: 3 arguments are required." >&2
+        /bin/echo "Usage: $0 <subject> <message> <to_address>" >&2
         exit 1
 fi
 

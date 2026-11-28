@@ -25,8 +25,8 @@ HOME="`/bin/cat /home/homedir.dat`"
 
 if ( [ "${1}" = "" ] || [ "${2}" = "" ] || [ "${3}" = "" ] )
 then
-        status "Error: Minimum of 3 arguments required."
-        status "Usage: $0 <subject> <message> <to_address>"
+        /bin/echo "Error: Minimum of 3 arguments required." >&2
+        /bin/echo "Usage: $0 <subject> <message> <to_address>" >&2
         exit 1
 fi
 
